@@ -159,8 +159,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-- 🐛 **Bug Reports:** [GitHub Issues](https://github.com/VoLLi/ha-growatt-noah/issues)
-- 💡 **Feature Requests:** [GitHub Discussions](https://github.com/VoLLi/ha-growatt-noah/discussions)
+- 🐛 **Bug Reports:** [GitHub Issues](https://github.com/mvolli/ha-growatt-noah/issues)
+- 💡 **Feature Requests:** [GitHub Discussions](https://github.com/mvolli/ha-growatt-noah/discussions)
 - 📖 **Documentation:** [docs/](docs/)
 - 🤝 **Community:** Home Assistant Community Forum
 

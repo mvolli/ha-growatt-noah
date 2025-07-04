@@ -36,7 +36,7 @@ Run these commands in your terminal:
 
 ```bash
 cd "/mnt/c/Users/VoLLi/ha-noah"
-git remote add origin https://github.com/VoLLi/ha-growatt-noah.git
+git remote add origin https://github.com/mvolli/ha-growatt-noah.git
 git push -u origin main
 ```
 
@@ -61,7 +61,7 @@ git push -u origin main
    
    ### Installation
    Install via HACS by adding this repository as a custom repository:
-   `https://github.com/VoLLi/ha-growatt-noah`
+   `https://github.com/mvolli/ha-growatt-noah`
    ```
 7. Click "Publish release"
 
@@ -71,7 +71,7 @@ git push -u origin main
 1. In Home Assistant, go to HACS
 2. Click the three dots in the top right
 3. Select "Custom repositories"
-4. Add repository URL: `https://github.com/VoLLi/ha-growatt-noah`
+4. Add repository URL: `https://github.com/mvolli/ha-growatt-noah`
 5. Category: "Integration"
 6. Click "Add"
 7. Find "Growatt Noah 2000" in the integrations list
@@ -106,6 +106,6 @@ After pushing, verify:
 ## Repository URL
 
 Your repository will be available at:
-`https://github.com/VoLLi/ha-growatt-noah`
+`https://github.com/mvolli/ha-growatt-noah`
 
 Users can install it via HACS using this URL.
