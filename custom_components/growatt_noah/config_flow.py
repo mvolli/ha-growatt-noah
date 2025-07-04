@@ -99,8 +99,16 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
         # If we get here, connection is successful
         return {"title": f"Noah 2000 ({data['connection_type'].upper()})"}
     
+    except CannotConnect:
+        raise
+    except Exception as err:
+        _LOGGER.exception("Unexpected error during connection test: %s", err)
+        raise CannotConnect(f"Connection test failed: {str(err)}")
     finally:
-        await api_client.async_close()
+        try:
+            await api_client.async_close()
+        except Exception as err:
+            _LOGGER.warning("Error closing API client: %s", err)
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):

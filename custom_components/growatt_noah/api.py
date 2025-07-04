@@ -94,7 +94,13 @@ class GrowattNoahAPI:
         if self._mqtt_client:
             await self._mqtt_client.disconnect()
         if self._modbus_client:
-            await self._modbus_client.close()
+            try:
+                if hasattr(self._modbus_client, 'close'):
+                    await self._modbus_client.close()
+                else:
+                    self._modbus_client.close()
+            except Exception:
+                pass  # Ignore close errors
     
     # API methods
     async def _test_api_connection(self) -> bool:
