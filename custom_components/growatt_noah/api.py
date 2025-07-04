@@ -21,7 +21,8 @@ from .const import (
     DEVICE_TYPE_NEO800,
     GROWATT_API_BASE_URL,
     GROWATT_API_LOGIN,
-    GROWATT_API_DEVICE_DATA,
+    GROWATT_API_PLANT_LIST,
+    GROWATT_API_INVERTER_DATA,
     NOAH_MODBUS_REGISTERS,
     NEO800_MODBUS_REGISTERS,
     DEFAULT_TIMEOUT,
@@ -63,6 +64,7 @@ class GrowattNoahAPI:
         self._mqtt_client: Optional[MQTTClient] = None
         self._modbus_client: Optional[AsyncModbusTcpClient | AsyncModbusSerialClient] = None
         self._auth_token: Optional[str] = None
+        self._user_data: dict[str, Any] = {}
         self._mqtt_data: dict[str, Any] = {}
     
     async def async_test_connection(self) -> bool:
@@ -120,12 +122,14 @@ class GrowattNoahAPI:
             return False
     
     async def _authenticate_api(self) -> None:
-        """Authenticate with Growatt API."""
+        """Authenticate with Growatt API using correct 2024 format."""
         if not self._session:
-            # Create session with unique headers to avoid conflicts
+            # Create session with correct headers for Growatt API
             headers = {
-                "User-Agent": "Noah2000-Integration/1.0.3",
-                "Accept": "application/json",
+                "User-Agent": "Noah2000-Integration/2.0.0",
+                "Accept": "application/json, text/plain, */*",
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Referer": "https://server.growatt.com/",
             }
             connector = aiohttp.TCPConnector(limit=10, limit_per_host=5)
             self._session = aiohttp.ClientSession(
@@ -134,9 +138,12 @@ class GrowattNoahAPI:
                 connector=connector
             )
         
+        # Growatt API requires specific form data format
         login_data = {
-            "userName": self.username,
+            "account": self.username,
             "password": self.password,
+            "validateCode": "",
+            "isReadPact": "0",
         }
         
         async with self._session.post(
@@ -145,42 +152,129 @@ class GrowattNoahAPI:
         ) as response:
             if response.status == 200:
                 result = await response.json()
-                if result.get("success"):
-                    self._auth_token = result.get("token")
+                # Growatt API returns different response structure
+                if result.get("result") == 1:
+                    # Store user info for subsequent requests
+                    self._auth_token = result.get("user", {}).get("id")
+                    self._user_data = result.get("user", {})
                 else:
-                    raise Exception(f"Login failed: {result.get('msg', 'Unknown error')}")
+                    error_msg = result.get("msg", "Unknown error")
+                    raise Exception(f"Login failed: {error_msg}")
             else:
-                raise Exception(f"HTTP {response.status}: {await response.text()}")
+                text = await response.text()
+                raise Exception(f"HTTP {response.status}: {text}")
     
     async def _get_api_data(self) -> NoahData | Neo800Data:
-        """Get data from Growatt API."""
+        """Get data from Growatt API using correct endpoints."""
         if not self._auth_token:
             await self._authenticate_api()
         
         if not self._session:
             self._session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout))
         
-        params = {
-            "token": self._auth_token,
-            "deviceId": self.device_id,
+        # First get plant list to find our device
+        plant_params = {
+            "currPage": "1",
+            "plantName": "",
         }
         
-        async with self._session.get(
-            f"{GROWATT_API_BASE_URL}{GROWATT_API_DEVICE_DATA}",
-            params=params,
+        async with self._session.post(
+            f"{GROWATT_API_BASE_URL}{GROWATT_API_PLANT_LIST}",
+            data=plant_params,
+        ) as response:
+            if response.status != 200:
+                raise Exception(f"Failed to get plant list: HTTP {response.status}")
+            
+            plants_result = await response.json()
+            if plants_result.get("result") != 1:
+                raise Exception(f"Plant list error: {plants_result.get('msg', 'Unknown error')}")
+            
+            plants = plants_result.get("datas", {}).get("data", [])
+            if not plants:
+                raise Exception("No plants found in account")
+            
+            # Use the first plant or find by device_id if specified
+            target_plant = plants[0]
+            if self.device_id:
+                for plant in plants:
+                    if plant.get("id") == self.device_id or plant.get("plantName") == self.device_id:
+                        target_plant = plant
+                        break
+            
+            plant_id = target_plant.get("id")
+            if not plant_id:
+                raise Exception("Could not determine plant ID")
+        
+        # Now get device data for the plant
+        device_params = {
+            "plantId": plant_id,
+            "currPage": "1",
+        }
+        
+        async with self._session.post(
+            f"{GROWATT_API_BASE_URL}{GROWATT_API_INVERTER_DATA}",
+            data=device_params,
         ) as response:
             if response.status == 200:
                 result = await response.json()
-                if result.get("success"):
-                    data = result.get("data", {})
+                if result.get("result") == 1:
+                    data = result.get("obj", {})
+                    # Convert Growatt API response to our format
+                    converted_data = self._convert_growatt_response(data)
+                    
                     if self.device_type == DEVICE_TYPE_NEO800:
-                        return Neo800Data.from_api_response(data)
+                        return Neo800Data.from_api_response(converted_data)
                     else:
-                        return NoahData.from_api_response(data)
+                        return NoahData.from_api_response(converted_data)
                 else:
                     raise Exception(f"API error: {result.get('msg', 'Unknown error')}")
             else:
                 raise Exception(f"HTTP {response.status}: {await response.text()}")
+    
+    def _convert_growatt_response(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Convert Growatt API response format to our expected format."""
+        # This method maps Growatt's response fields to our data model
+        converted = {}
+        
+        # Map common fields
+        if "pac" in data:
+            converted["solar_power"] = data["pac"]
+        if "eToday" in data:
+            converted["solar_energy_today"] = data["eToday"]
+        if "eTotal" in data:
+            converted["solar_energy_total"] = data["eTotal"]
+        if "vpv1" in data:
+            converted["pv1_voltage"] = data["vpv1"]
+        if "ipv1" in data:
+            converted["pv1_current"] = data["ipv1"]
+        if "ppv1" in data:
+            converted["pv1_power"] = data["ppv1"]
+        if "vpv2" in data:
+            converted["pv2_voltage"] = data["vpv2"]
+        if "ipv2" in data:
+            converted["pv2_current"] = data["ipv2"]
+        if "ppv2" in data:
+            converted["pv2_power"] = data["ppv2"]
+        if "vac1" in data:
+            converted["grid_voltage"] = data["vac1"]
+        if "fac1" in data:
+            converted["grid_frequency"] = data["fac1"]
+        if "tempperature" in data:  # Note: Growatt has a typo in their API
+            converted["inverter_temperature"] = data["tempperature"]
+        if "status" in data:
+            converted["system_status"] = self._convert_status(data["status"])
+        
+        return converted
+    
+    def _convert_status(self, status: int) -> str:
+        """Convert Growatt status code to readable string."""
+        status_map = {
+            0: "Offline",
+            1: "Normal",
+            2: "Fault",
+            3: "Checking",
+        }
+        return status_map.get(status, f"Unknown ({status})")
     
     # MQTT methods
     async def _test_mqtt_connection(self) -> bool:

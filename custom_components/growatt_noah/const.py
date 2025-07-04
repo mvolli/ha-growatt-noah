@@ -19,11 +19,15 @@ CONNECTION_TYPE_MODBUS_RTU: Final = "modbus_rtu"
 DEVICE_TYPE_NOAH: Final = "noah_2000"
 DEVICE_TYPE_NEO800: Final = "neo_800"
 
-# API endpoints
-GROWATT_API_BASE_URL: Final = "https://server.growatt.com"
-GROWATT_API_LOGIN: Final = "/login"
-GROWATT_API_DEVICE_LIST: Final = "/device/getDeviceList"
-GROWATT_API_DEVICE_DATA: Final = "/device/getDeviceData"
+# API endpoints - Updated for 2024 API structure
+GROWATT_API_BASE_URL: Final = "https://server-api.growatt.com"
+GROWATT_API_V1_BASE_URL: Final = "https://openapi.growatt.com/v1"
+GROWATT_API_LOGIN: Final = "/newTwoLoginAPI.do"
+GROWATT_API_V1_LOGIN: Final = "/login"
+GROWATT_API_DEVICE_LIST: Final = "/device/getDevicesByPlantList"
+GROWATT_API_DEVICE_DATA: Final = "/panel/getDevicesByPlant"
+GROWATT_API_PLANT_LIST: Final = "/PlantListAPI.do"
+GROWATT_API_INVERTER_DATA: Final = "/newInverterAPI.do"
 
 # MQTT topics structure
 MQTT_TOPIC_STATUS: Final = "status"

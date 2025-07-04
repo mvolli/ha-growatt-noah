@@ -52,7 +52,7 @@ STEP_API_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_USERNAME): str,
         vol.Required(CONF_PASSWORD): str,
-        vol.Required("device_id"): str,
+        vol.Optional("device_id", description="Plant ID or name (leave empty for first plant)"): str,
         vol.Optional("scan_interval", default=DEFAULT_SCAN_INTERVAL): vol.Coerce(int),
     }
 )
