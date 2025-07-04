@@ -353,7 +353,13 @@ class GrowattNoahAPI:
                 result = await self._modbus_client.read_holding_registers(1000, 1)
                 return not result.isError()
             return False
-        except Exception:
+        except Exception as err:
+            _LOGGER.error(
+                "Modbus connection failed: %s. "
+                "Note: Most Growatt devices (Noah 2000, Neo 800) do not support Modbus TCP by default. "
+                "Consider using MQTT or API connection instead.",
+                err
+            )
             return False
     
     async def _setup_modbus_client(self) -> None:

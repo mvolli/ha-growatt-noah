@@ -67,11 +67,12 @@ A comprehensive Home Assistant integration for monitoring Growatt Noah 2000 batt
 - **Use cases**: When device publishes to local MQTT broker
 - **Configuration**: MQTT broker, credentials, topic prefix
 
-#### 🔌 Modbus TCP/RTU (Best for Local)
+#### 🔌 Modbus TCP/RTU (Limited Support)
 - **Requirements**: Direct network/serial connection to device
-- **Benefits**: Direct local communication, most reliable
-- **Use cases**: Local network access to device
+- **Limitations**: ⚠️ **Most Growatt devices do NOT support Modbus TCP by default**
+- **Use cases**: Custom firmware or specific Growatt models with Modbus support
 - **Configuration**: IP address/serial port, device ID
+- **Note**: If you get "Connection refused" errors, your device likely doesn't support Modbus
 
 ## API Access Important Notes
 
@@ -110,9 +111,12 @@ For API access, you need:
 - **Topics**: `{prefix}/status`, `{prefix}/solar`, `{prefix}/battery`, etc.
 
 ### Modbus Connection Issues
-- **TCP**: Verify IP address and port (default 502)
+- **Error**: "Connection refused" on port 502
+  - **Solution**: Switch to MQTT or API connection
+  - **Reason**: Most Growatt devices don't support Modbus TCP by default
+- **TCP**: If supported, verify IP address and port (default 502)
 - **RTU**: Check serial port, baudrate, and device ID
-- **Registers**: Ensure device supports Modbus communication
+- **Alternative**: Use RS485-to-Modbus converter if device has RS485 port
 
 ## Advanced Configuration
 

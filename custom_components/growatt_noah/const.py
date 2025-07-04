@@ -71,6 +71,8 @@ NOAH_MODBUS_REGISTERS = {
 }
 
 # Modbus register addresses for Neo 800 (inverter only)
+# Note: Most Growatt devices do not support Modbus TCP by default
+# These registers are theoretical based on Growatt documentation
 NEO800_MODBUS_REGISTERS = {
     # Inverter status and control
     "inverter_status": 0,
@@ -104,6 +106,11 @@ NEO800_MODBUS_REGISTERS = {
     "firmware_version": 88,
     "serial_number": 23,   # Multiple registers
 }
+
+# Note: Growatt devices typically use these communication methods:
+# - Neo 800: MQTT over TLS to mqtt.growatt.com:7006
+# - Noah 2000: Proprietary protocol to Growatt servers
+# - Local MQTT: Requires additional bridge/proxy software
 
 # Combined register maps (legacy compatibility)
 MODBUS_REGISTERS = NOAH_MODBUS_REGISTERS
