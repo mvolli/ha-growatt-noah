@@ -263,8 +263,17 @@ class NoahSensor(CoordinatorEntity[NoahDataUpdateCoordinator], SensorEntity):
             "name": "Growatt Noah 2000",
             "manufacturer": "Growatt",
             "model": "Noah 2000",
-            "sw_version": getattr(coordinator.data.system, "firmware_version", None) if coordinator.data else None,
+            "sw_version": self._get_firmware_version(),
         }
+    
+    def _get_firmware_version(self) -> str | None:
+        """Safely get firmware version from coordinator data."""
+        try:
+            if self.coordinator.data and hasattr(self.coordinator.data, 'system'):
+                return getattr(self.coordinator.data.system, 'firmware_version', None)
+        except Exception:
+            pass
+        return None
     
     @property
     def native_value(self) -> Any:
