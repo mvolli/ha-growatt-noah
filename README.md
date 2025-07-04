@@ -168,4 +168,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - [mtrossbach/noah-mqtt](https://github.com/mtrossbach/noah-mqtt) - Inspiration and MQTT bridge
 - [Growatt](https://www.growatt.com/) - Device manufacturer
-- [Home Assistant](https://www.home-assistant.io/) - The best home automation platform
+- [Home Assistant](https://www.home-assistant.io/) - The best home automation platform# ha-growatt-noah
