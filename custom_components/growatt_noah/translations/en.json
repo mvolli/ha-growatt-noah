@@ -1,0 +1,74 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Growatt Noah 2000 Setup",
+        "description": "Choose how you want to connect to your Growatt Noah 2000 battery system.",
+        "data": {
+          "connection_type": "Connection Type"
+        }
+      },
+      "api": {
+        "title": "Growatt Cloud API",
+        "description": "Connect via Growatt's cloud service. Requires your Growatt account credentials.",
+        "data": {
+          "username": "Username",
+          "password": "Password",
+          "device_id": "Device ID",
+          "scan_interval": "Update Interval (seconds)"
+        }
+      },
+      "mqtt": {
+        "title": "MQTT Connection",
+        "description": "Connect via MQTT broker. Requires a compatible MQTT bridge like noah-mqtt.",
+        "data": {
+          "mqtt_broker": "MQTT Broker Host",
+          "port": "Port",
+          "username": "Username (optional)",
+          "password": "Password (optional)",
+          "mqtt_topic": "MQTT Topic Base",
+          "scan_interval": "Update Interval (seconds)"
+        }
+      },
+      "modbus_tcp": {
+        "title": "Modbus TCP",
+        "description": "Connect directly via Modbus TCP over network.",
+        "data": {
+          "host": "Host/IP Address",
+          "port": "Port",
+          "device_id": "Modbus Device ID",
+          "scan_interval": "Update Interval (seconds)"
+        }
+      },
+      "modbus_rtu": {
+        "title": "Modbus RTU",
+        "description": "Connect directly via Modbus RTU over serial connection.",
+        "data": {
+          "serial_port": "Serial Port",
+          "baudrate": "Baud Rate",
+          "device_id": "Modbus Device ID",
+          "scan_interval": "Update Interval (seconds)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the device. Please check your settings.",
+      "invalid_auth": "Invalid authentication credentials.",
+      "unknown": "Unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "Device is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Growatt Noah 2000 Options",
+        "description": "Configure advanced options for your Growatt Noah 2000 integration.",
+        "data": {
+          "scan_interval": "Update Interval (seconds)"
+        }
+      }
+    }
+  }
+}

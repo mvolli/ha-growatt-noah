@@ -1,0 +1,18 @@
+{
+  "domain": "growatt_noah",
+  "name": "Growatt Noah 2000",
+  "codeowners": ["@VoLLi"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/VoLLi/ha-growatt-noah",
+  "issue_tracker": "https://github.com/VoLLi/ha-growatt-noah/issues",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "loggers": ["growatt_noah"],
+  "requirements": [
+    "aiohttp>=3.8.0",
+    "asyncio-mqtt>=0.11.0",
+    "pymodbus>=3.0.0"
+  ],
+  "version": "1.0.0"
+}

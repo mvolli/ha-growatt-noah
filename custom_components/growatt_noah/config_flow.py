@@ -1,0 +1,251 @@
+"""Config flow for Growatt Noah 2000 integration."""
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+import voluptuous as vol
+from homeassistant import config_entries
+from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
+from homeassistant.core import HomeAssistant
+from homeassistant.data_entry_flow import FlowResult
+from homeassistant.exceptions import HomeAssistantError
+
+from .api import GrowattNoahAPI
+from .const import (
+    DOMAIN,
+    CONNECTION_TYPE_API,
+    CONNECTION_TYPE_MQTT,
+    CONNECTION_TYPE_MODBUS_TCP,
+    CONNECTION_TYPE_MODBUS_RTU,
+    DEFAULT_SCAN_INTERVAL,
+    DEFAULT_PORT_MODBUS,
+    DEFAULT_PORT_MQTT,
+)
+
+_LOGGER = logging.getLogger(__name__)
+
+# Configuration step schemas
+STEP_USER_DATA_SCHEMA = vol.Schema(
+    {
+        vol.Required("connection_type"): vol.In([
+            CONNECTION_TYPE_API,
+            CONNECTION_TYPE_MQTT,
+            CONNECTION_TYPE_MODBUS_TCP,
+            CONNECTION_TYPE_MODBUS_RTU,
+        ]),
+    }
+)
+
+STEP_API_DATA_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_USERNAME): str,
+        vol.Required(CONF_PASSWORD): str,
+        vol.Required("device_id"): str,
+        vol.Optional("scan_interval", default=DEFAULT_SCAN_INTERVAL): vol.Coerce(int),
+    }
+)
+
+STEP_MQTT_DATA_SCHEMA = vol.Schema(
+    {
+        vol.Required("mqtt_broker"): str,
+        vol.Optional(CONF_PORT, default=DEFAULT_PORT_MQTT): vol.Coerce(int),
+        vol.Optional(CONF_USERNAME): str,
+        vol.Optional(CONF_PASSWORD): str,
+        vol.Optional("mqtt_topic", default="noah"): str,
+        vol.Optional("scan_interval", default=DEFAULT_SCAN_INTERVAL): vol.Coerce(int),
+    }
+)
+
+STEP_MODBUS_TCP_DATA_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_HOST): str,
+        vol.Optional(CONF_PORT, default=DEFAULT_PORT_MODBUS): vol.Coerce(int),
+        vol.Optional("device_id", default=1): vol.Coerce(int),
+        vol.Optional("scan_interval", default=DEFAULT_SCAN_INTERVAL): vol.Coerce(int),
+    }
+)
+
+STEP_MODBUS_RTU_DATA_SCHEMA = vol.Schema(
+    {
+        vol.Required("serial_port"): str,
+        vol.Optional("baudrate", default=9600): vol.In([1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200]),
+        vol.Optional("device_id", default=1): vol.Coerce(int),
+        vol.Optional("scan_interval", default=DEFAULT_SCAN_INTERVAL): vol.Coerce(int),
+    }
+)
+
+
+async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
+    """Validate the user input allows us to connect."""
+    
+    # Create API client for testing
+    api_client = GrowattNoahAPI(
+        connection_type=data["connection_type"],
+        host=data.get(CONF_HOST) or data.get("serial_port"),
+        port=data.get(CONF_PORT) or data.get("baudrate"),
+        username=data.get(CONF_USERNAME),
+        password=data.get(CONF_PASSWORD),
+        mqtt_broker=data.get("mqtt_broker"),
+        mqtt_topic=data.get("mqtt_topic", "noah"),
+        device_id=data.get("device_id"),
+    )
+    
+    try:
+        # Test the connection
+        if not await api_client.async_test_connection():
+            raise CannotConnect("Connection test failed")
+        
+        # If we get here, connection is successful
+        return {"title": f"Noah 2000 ({data['connection_type'].upper()})"}
+    
+    finally:
+        await api_client.async_close()
+
+
+class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for Growatt Noah 2000."""
+    
+    VERSION = 1
+    
+    def __init__(self) -> None:
+        """Initialize the config flow."""
+        self.connection_type: str | None = None
+        self.config_data: dict[str, Any] = {}
+    
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle the initial step."""
+        errors: dict[str, str] = {}
+        
+        if user_input is not None:
+            self.connection_type = user_input["connection_type"]
+            
+            # Route to the appropriate step based on connection type
+            if self.connection_type == CONNECTION_TYPE_API:
+                return await self.async_step_api()
+            elif self.connection_type == CONNECTION_TYPE_MQTT:
+                return await self.async_step_mqtt()
+            elif self.connection_type == CONNECTION_TYPE_MODBUS_TCP:
+                return await self.async_step_modbus_tcp()
+            elif self.connection_type == CONNECTION_TYPE_MODBUS_RTU:
+                return await self.async_step_modbus_rtu()
+        
+        return self.async_show_form(
+            step_id="user",
+            data_schema=STEP_USER_DATA_SCHEMA,
+            errors=errors,
+        )
+    
+    async def async_step_api(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle API configuration step."""
+        errors: dict[str, str] = {}
+        
+        if user_input is not None:
+            user_input["connection_type"] = self.connection_type
+            
+            try:
+                info = await validate_input(self.hass, user_input)
+            except CannotConnect:
+                errors["base"] = "cannot_connect"
+            except InvalidAuth:
+                errors["base"] = "invalid_auth"
+            except Exception:  # pylint: disable=broad-except
+                _LOGGER.exception("Unexpected exception")
+                errors["base"] = "unknown"
+            else:
+                return self.async_create_entry(title=info["title"], data=user_input)
+        
+        return self.async_show_form(
+            step_id="api",
+            data_schema=STEP_API_DATA_SCHEMA,
+            errors=errors,
+        )
+    
+    async def async_step_mqtt(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle MQTT configuration step."""
+        errors: dict[str, str] = {}
+        
+        if user_input is not None:
+            user_input["connection_type"] = self.connection_type
+            
+            try:
+                info = await validate_input(self.hass, user_input)
+            except CannotConnect:
+                errors["base"] = "cannot_connect"
+            except Exception:  # pylint: disable=broad-except
+                _LOGGER.exception("Unexpected exception")
+                errors["base"] = "unknown"
+            else:
+                return self.async_create_entry(title=info["title"], data=user_input)
+        
+        return self.async_show_form(
+            step_id="mqtt",
+            data_schema=STEP_MQTT_DATA_SCHEMA,
+            errors=errors,
+        )
+    
+    async def async_step_modbus_tcp(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle Modbus TCP configuration step."""
+        errors: dict[str, str] = {}
+        
+        if user_input is not None:
+            user_input["connection_type"] = self.connection_type
+            
+            try:
+                info = await validate_input(self.hass, user_input)
+            except CannotConnect:
+                errors["base"] = "cannot_connect"
+            except Exception:  # pylint: disable=broad-except
+                _LOGGER.exception("Unexpected exception")
+                errors["base"] = "unknown"
+            else:
+                return self.async_create_entry(title=info["title"], data=user_input)
+        
+        return self.async_show_form(
+            step_id="modbus_tcp",
+            data_schema=STEP_MODBUS_TCP_DATA_SCHEMA,
+            errors=errors,
+        )
+    
+    async def async_step_modbus_rtu(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle Modbus RTU configuration step."""
+        errors: dict[str, str] = {}
+        
+        if user_input is not None:
+            user_input["connection_type"] = self.connection_type
+            user_input[CONF_HOST] = user_input["serial_port"]  # Map serial_port to host
+            user_input[CONF_PORT] = user_input["baudrate"]  # Map baudrate to port
+            
+            try:
+                info = await validate_input(self.hass, user_input)
+            except CannotConnect:
+                errors["base"] = "cannot_connect"
+            except Exception:  # pylint: disable=broad-except
+                _LOGGER.exception("Unexpected exception")
+                errors["base"] = "unknown"
+            else:
+                return self.async_create_entry(title=info["title"], data=user_input)
+        
+        return self.async_show_form(
+            step_id="modbus_rtu",
+            data_schema=STEP_MODBUS_RTU_DATA_SCHEMA,
+            errors=errors,
+        )
+
+
+class CannotConnect(HomeAssistantError):
+    """Error to indicate we cannot connect."""
+
+
+class InvalidAuth(HomeAssistantError):
+    """Error to indicate there is invalid auth."""

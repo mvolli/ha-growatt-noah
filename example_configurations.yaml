@@ -1,0 +1,133 @@
+# Example Home Assistant configurations for Growatt Noah 2000
+
+# Energy Dashboard Integration
+# The integration automatically provides energy sensors that work with HA's energy dashboard
+
+# Example automations
+automation:
+  # Notify when battery is low
+  - alias: "Noah Battery Low Alert"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.battery_low
+        to: "on"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "Battery Low"
+          message: "Noah 2000 battery is below 20% ({{ states('sensor.battery_state_of_charge') }}%)"
+  
+  # Notify when grid connection is lost
+  - alias: "Noah Grid Disconnected"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.grid_connected
+        to: "off"
+        for: "00:02:00"  # Wait 2 minutes to avoid false alarms
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "Grid Disconnected"
+          message: "Noah 2000 has lost grid connection"
+  
+  # Daily energy summary
+  - alias: "Noah Daily Energy Summary"
+    trigger:
+      - platform: time
+        at: "23:30:00"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "Noah Daily Summary"
+          message: >
+            Solar: {{ states('sensor.solar_energy_today') }} kWh
+            Load: {{ states('sensor.load_energy_today') }} kWh
+            Grid Import: {{ states('sensor.grid_energy_imported_today') }} kWh
+            Grid Export: {{ states('sensor.grid_energy_exported_today') }} kWh
+
+# Example sensors for calculations
+sensor:
+  # Calculate energy self-sufficiency
+  - platform: template
+    sensors:
+      noah_self_sufficiency:
+        friendly_name: "Energy Self-Sufficiency"
+        unit_of_measurement: "%"
+        value_template: >
+          {% set solar = states('sensor.solar_energy_today') | float(0) %}
+          {% set load = states('sensor.load_energy_today') | float(0) %}
+          {% if load > 0 %}
+            {{ ((solar / load) * 100) | round(1) }}
+          {% else %}
+            0
+          {% endif %}
+  
+  # Calculate current power flow
+  - platform: template
+    sensors:
+      noah_power_flow:
+        friendly_name: "Power Flow Status"
+        value_template: >
+          {% set solar = states('sensor.solar_power') | float(0) %}
+          {% set battery = states('sensor.battery_power') | float(0) %}
+          {% set grid = states('sensor.grid_power') | float(0) %}
+          {% set load = states('sensor.load_power') | float(0) %}
+          
+          {% if battery > 50 %}
+            Charging
+          {% elif battery < -50 %}
+            Discharging
+          {% elif grid > 50 %}
+            Grid Import
+          {% elif grid < -50 %}
+            Grid Export
+          {% else %}
+            Balanced
+          {% endif %}
+
+# Example utility meter for daily/monthly tracking
+utility_meter:
+  noah_solar_daily:
+    source: sensor.solar_energy_total
+    cycle: daily
+  
+  noah_solar_monthly:
+    source: sensor.solar_energy_total
+    cycle: monthly
+  
+  noah_load_daily:
+    source: sensor.load_energy_total
+    cycle: daily
+  
+  noah_load_monthly:
+    source: sensor.load_energy_total
+    cycle: monthly
+
+# Example Lovelace dashboard card
+# Add this to your dashboard YAML:
+# 
+# type: entities
+# title: "Noah 2000 Status"
+# entities:
+#   - entity: sensor.battery_state_of_charge
+#     name: "Battery Level"
+#   - entity: sensor.solar_power
+#     name: "Solar Generation"
+#   - entity: sensor.load_power
+#     name: "Home Consumption"
+#   - entity: sensor.grid_power
+#     name: "Grid Power"
+#   - entity: binary_sensor.grid_connected
+#     name: "Grid Connected"
+#   - entity: binary_sensor.battery_charging
+#     name: "Battery Charging"
+
+# Example energy flow card configuration:
+#
+# type: custom:power-flow-card
+# entities:
+#   grid: sensor.grid_power
+#   solar: sensor.solar_power
+#   battery: sensor.battery_power
+#   home: sensor.load_power
+# clickable_entities: true

@@ -1,0 +1,7 @@
+{
+  "name": "Growatt Noah 2000",
+  "hacs": "1.6.0",
+  "domains": ["sensor", "binary_sensor", "switch", "number"],
+  "iot_class": "Local Polling",
+  "homeassistant": "2023.1.0"
+}
