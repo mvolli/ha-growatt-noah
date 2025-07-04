@@ -17,23 +17,27 @@ from .const import (
     CONNECTION_TYPE_MQTT,
     CONNECTION_TYPE_MODBUS_TCP,
     CONNECTION_TYPE_MODBUS_RTU,
+    DEVICE_TYPE_NOAH,
+    DEVICE_TYPE_NEO800,
     GROWATT_API_BASE_URL,
     GROWATT_API_LOGIN,
     GROWATT_API_DEVICE_DATA,
-    MODBUS_REGISTERS,
+    NOAH_MODBUS_REGISTERS,
+    NEO800_MODBUS_REGISTERS,
     DEFAULT_TIMEOUT,
 )
-from .models import NoahData
+from .models import NoahData, Neo800Data
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class GrowattNoahAPI:
-    """Main API client for Growatt Noah 2000."""
+    """Main API client for Growatt Noah 2000 and Neo 800."""
     
     def __init__(
         self,
         connection_type: str,
+        device_type: str = DEVICE_TYPE_NOAH,
         host: Optional[str] = None,
         port: Optional[int] = None,
         username: Optional[str] = None,
@@ -45,6 +49,7 @@ class GrowattNoahAPI:
     ) -> None:
         """Initialize the API client."""
         self.connection_type = connection_type
+        self.device_type = device_type
         self.host = host
         self.port = port
         self.username = username
@@ -76,7 +81,7 @@ class GrowattNoahAPI:
             _LOGGER.error("Connection test failed: %s", err)
             return False
     
-    async def async_get_data(self) -> NoahData:
+    async def async_get_data(self) -> NoahData | Neo800Data:
         """Get device data."""
         if self.connection_type == CONNECTION_TYPE_API:
             return await self._get_api_data()
@@ -117,7 +122,17 @@ class GrowattNoahAPI:
     async def _authenticate_api(self) -> None:
         """Authenticate with Growatt API."""
         if not self._session:
-            self._session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout))
+            # Create session with unique headers to avoid conflicts
+            headers = {
+                "User-Agent": "Noah2000-Integration/1.0.3",
+                "Accept": "application/json",
+            }
+            connector = aiohttp.TCPConnector(limit=10, limit_per_host=5)
+            self._session = aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=self.timeout),
+                headers=headers,
+                connector=connector
+            )
         
         login_data = {
             "userName": self.username,
@@ -137,7 +152,7 @@ class GrowattNoahAPI:
             else:
                 raise Exception(f"HTTP {response.status}: {await response.text()}")
     
-    async def _get_api_data(self) -> NoahData:
+    async def _get_api_data(self) -> NoahData | Neo800Data:
         """Get data from Growatt API."""
         if not self._auth_token:
             await self._authenticate_api()
@@ -157,7 +172,11 @@ class GrowattNoahAPI:
             if response.status == 200:
                 result = await response.json()
                 if result.get("success"):
-                    return NoahData.from_api_response(result.get("data", {}))
+                    data = result.get("data", {})
+                    if self.device_type == DEVICE_TYPE_NEO800:
+                        return Neo800Data.from_api_response(data)
+                    else:
+                        return NoahData.from_api_response(data)
                 else:
                     raise Exception(f"API error: {result.get('msg', 'Unknown error')}")
             else:
@@ -217,7 +236,7 @@ class GrowattNoahAPI:
             except Exception as err:
                 _LOGGER.warning("Failed to process MQTT message: %s", err)
     
-    async def _get_mqtt_data(self) -> NoahData:
+    async def _get_mqtt_data(self) -> NoahData | Neo800Data:
         """Get data from MQTT."""
         if not self._mqtt_client:
             await self._setup_mqtt_client()
@@ -225,7 +244,10 @@ class GrowattNoahAPI:
         # Wait a bit for data to arrive
         await asyncio.sleep(1)
         
-        return NoahData.from_mqtt_data(self._mqtt_data)
+        if self.device_type == DEVICE_TYPE_NEO800:
+            return Neo800Data.from_mqtt_data(self._mqtt_data)
+        else:
+            return NoahData.from_mqtt_data(self._mqtt_data)
     
     # Modbus methods
     async def _test_modbus_connection(self) -> bool:
@@ -259,7 +281,7 @@ class GrowattNoahAPI:
             if self._modbus_client:
                 await self._modbus_client.connect()
     
-    async def _get_modbus_data(self) -> NoahData:
+    async def _get_modbus_data(self) -> NoahData | Neo800Data:
         """Get data from Modbus."""
         if not self._modbus_client:
             await self._setup_modbus_client()
@@ -267,10 +289,11 @@ class GrowattNoahAPI:
         if not self._modbus_client:
             raise Exception("Failed to connect to Modbus device")
         
-        # Read all registers
+        # Read all registers based on device type
         register_data = {}
+        registers = NEO800_MODBUS_REGISTERS if self.device_type == DEVICE_TYPE_NEO800 else NOAH_MODBUS_REGISTERS
         
-        for name, address in MODBUS_REGISTERS.items():
+        for name, address in registers.items():
             try:
                 result = await self._modbus_client.read_holding_registers(address, 1)
                 if not result.isError():
@@ -280,4 +303,7 @@ class GrowattNoahAPI:
             except ModbusException as err:
                 _LOGGER.warning("Modbus error reading %s: %s", name, err)
         
-        return NoahData.from_modbus_data(register_data)
+        if self.device_type == DEVICE_TYPE_NEO800:
+            return Neo800Data.from_modbus_data(register_data)
+        else:
+            return NoahData.from_modbus_data(register_data)

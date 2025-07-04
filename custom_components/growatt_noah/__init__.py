@@ -1,4 +1,4 @@
-"""Growatt Noah 2000 integration for Home Assistant."""
+"""Growatt Noah 2000 and Neo 800 integration for Home Assistant."""
 from __future__ import annotations
 
 import asyncio
@@ -11,9 +11,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DOMAIN, DEFAULT_SCAN_INTERVAL
+from .const import DOMAIN, DEFAULT_SCAN_INTERVAL, DEVICE_TYPE_NOAH
 from .api import GrowattNoahAPI
-from .models import NoahData
+from .models import NoahData, Neo800Data
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,6 +31,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Initialize the API client based on connection method
     api_client = GrowattNoahAPI(
         connection_type=entry.data["connection_type"],
+        device_type=entry.data.get("device_type", DEVICE_TYPE_NOAH),
         host=entry.data.get("host"),
         port=entry.data.get("port"),
         username=entry.data.get("username"),
@@ -54,8 +55,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.data.get("scan_interval", DEFAULT_SCAN_INTERVAL),
     )
     
-    # Fetch initial data
-    await coordinator.async_config_entry_first_refresh()
+    # Fetch initial data - but don't fail setup if this fails
+    try:
+        await coordinator.async_config_entry_first_refresh()
+    except Exception as err:
+        _LOGGER.warning("Initial data fetch failed, will retry: %s", err)
+        # Continue with setup anyway, coordinator will retry automatically
     
     # Store coordinator and API client
     hass.data.setdefault(DOMAIN, {})
@@ -65,7 +70,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     }
     
     # Set up platforms
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    try:
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    except Exception as err:
+        _LOGGER.error("Failed to set up platforms: %s", err)
+        # Clean up on failure
+        hass.data[DOMAIN].pop(entry.entry_id, None)
+        await api_client.async_close()
+        raise ConfigEntryNotReady(f"Failed to set up platforms: {err}") from err
     
     return True
 
@@ -81,8 +93,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unload_ok
 
 
-class NoahDataUpdateCoordinator(DataUpdateCoordinator[NoahData]):
-    """Class to manage fetching Noah data from the API."""
+class NoahDataUpdateCoordinator(DataUpdateCoordinator[NoahData | Neo800Data]):
+    """Class to manage fetching Noah/Neo data from the API."""
     
     def __init__(
         self,
@@ -100,7 +112,7 @@ class NoahDataUpdateCoordinator(DataUpdateCoordinator[NoahData]):
             update_interval=timedelta(seconds=scan_interval),
         )
     
-    async def _async_update_data(self) -> NoahData:
+    async def _async_update_data(self) -> NoahData | Neo800Data:
         """Update data via library."""
         try:
             return await self.api_client.async_get_data()

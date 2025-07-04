@@ -1,6 +1,7 @@
 """Sensor platform for Growatt Noah 2000."""
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -24,8 +25,10 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import NoahDataUpdateCoordinator
-from .const import DOMAIN, ENTITY_CATEGORY_DIAGNOSTIC
-from .models import NoahData
+from .const import DOMAIN, ENTITY_CATEGORY_DIAGNOSTIC, DEVICE_TYPE_NEO800
+from .models import NoahData, Neo800Data
+
+_LOGGER = logging.getLogger(__name__)
 
 # Define all sensor entities
 SENSORS: tuple[SensorEntityDescription, ...] = (
@@ -230,18 +233,135 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
     ),
 )
 
+# Neo 800 specific sensors (for inverter-only functionality)
+NEO800_SENSORS: tuple[SensorEntityDescription, ...] = (
+    # PV1 sensors
+    SensorEntityDescription(
+        key="pv1_voltage",
+        name="PV1 Voltage",
+        device_class=SensorDeviceClass.VOLTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+        icon="mdi:flash",
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
+    SensorEntityDescription(
+        key="pv1_current",
+        name="PV1 Current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        icon="mdi:current-ac",
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
+    SensorEntityDescription(
+        key="pv1_power",
+        name="PV1 Power",
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfPower.WATT,
+        icon="mdi:solar-panel",
+    ),
+    
+    # PV2 sensors
+    SensorEntityDescription(
+        key="pv2_voltage",
+        name="PV2 Voltage",
+        device_class=SensorDeviceClass.VOLTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+        icon="mdi:flash",
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
+    SensorEntityDescription(
+        key="pv2_current",
+        name="PV2 Current",
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        icon="mdi:current-ac",
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
+    SensorEntityDescription(
+        key="pv2_power",
+        name="PV2 Power",
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfPower.WATT,
+        icon="mdi:solar-panel",
+    ),
+    
+    # Inverter specific sensors
+    SensorEntityDescription(
+        key="inverter_temperature",
+        name="Inverter Temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        icon="mdi:thermometer",
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
+    SensorEntityDescription(
+        key="power_factor",
+        name="Power Factor",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:sine-wave",
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
+    SensorEntityDescription(
+        key="derating_mode",
+        name="Derating Mode",
+        icon="mdi:speedometer",
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
+    SensorEntityDescription(
+        key="fault_codes",
+        name="Fault Codes",
+        icon="mdi:alert-circle",
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
+    SensorEntityDescription(
+        key="warning_codes",
+        name="Warning Codes",
+        icon="mdi:alert",
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
+)
+
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """Set up the sensor platform."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-    
-    entities = []
-    for description in SENSORS:
-        entities.append(NoahSensor(coordinator, description, entry))
-    
-    async_add_entities(entities)
+    try:
+        coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+        device_type = entry.data.get("device_type", "noah_2000")
+        
+        entities = []
+        
+        # Determine which sensors to create based on device type
+        if device_type == DEVICE_TYPE_NEO800:
+            # For Neo 800, use common sensors (excluding battery) plus Neo-specific sensors
+            sensor_descriptions = [s for s in SENSORS if not s.key.startswith("battery_")] + list(NEO800_SENSORS)
+        else:
+            # For Noah 2000, use all standard sensors
+            sensor_descriptions = SENSORS
+        
+        for description in sensor_descriptions:
+            try:
+                entities.append(NoahSensor(coordinator, description, entry))
+            except Exception as err:
+                _LOGGER.error("Failed to create sensor %s: %s", description.key, err)
+                # Continue with other sensors
+        
+        if entities:
+            async_add_entities(entities)
+        else:
+            _LOGGER.warning("No sensors could be created")
+            
+    except Exception as err:
+        _LOGGER.error("Failed to set up sensor platform: %s", err)
+        raise
 
 
 class NoahSensor(CoordinatorEntity[NoahDataUpdateCoordinator], SensorEntity):
@@ -258,11 +378,15 @@ class NoahSensor(CoordinatorEntity[NoahDataUpdateCoordinator], SensorEntity):
         
         self.entity_description = description
         self._attr_unique_id = f"{entry.entry_id}_{description.key}"
+        device_type = entry.data.get("device_type", "noah_2000")
+        device_name = "Growatt Neo 800" if device_type == DEVICE_TYPE_NEO800 else "Growatt Noah 2000"
+        device_model = "Neo 800" if device_type == DEVICE_TYPE_NEO800 else "Noah 2000"
+        
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
-            "name": "Growatt Noah 2000",
+            "name": device_name,
             "manufacturer": "Growatt",
-            "model": "Noah 2000",
+            "model": device_model,
             "sw_version": self._get_firmware_version(),
         }
     
@@ -281,18 +405,13 @@ class NoahSensor(CoordinatorEntity[NoahDataUpdateCoordinator], SensorEntity):
         if not self.coordinator.data:
             return None
         
-        data: NoahData = self.coordinator.data
+        data = self.coordinator.data
         
-        # Map sensor keys to data attributes
-        key_mapping = {
-            # Battery
-            "battery_soc": data.battery.soc,
-            "battery_voltage": data.battery.voltage,
-            "battery_current": data.battery.current,
-            "battery_power": data.battery.power,
-            "battery_temperature": data.battery.temperature,
-            "battery_status": data.battery.status,
-            
+        # Handle both NoahData and Neo800Data
+        key_mapping = {}
+        
+        # Common mappings available for both device types
+        key_mapping.update({
             # Solar
             "solar_power": data.solar.power,
             "solar_voltage": data.solar.voltage,
@@ -309,16 +428,43 @@ class NoahSensor(CoordinatorEntity[NoahDataUpdateCoordinator], SensorEntity):
             "grid_energy_imported_total": data.grid.energy_imported_total,
             "grid_energy_exported_total": data.grid.energy_exported_total,
             
-            # Load
-            "load_power": data.load.power,
-            "load_energy_today": data.load.energy_today,
-            "load_energy_total": data.load.energy_total,
-            
             # System
             "system_status": data.system.status,
             "system_mode": data.system.mode,
             "firmware_version": data.system.firmware_version,
-        }
+            "inverter_temperature": data.system.inverter_temperature,
+            "power_factor": data.system.output_power_factor,
+            "derating_mode": data.system.derating_mode,
+            "fault_codes": ", ".join(data.system.fault_codes) if data.system.fault_codes else None,
+            "warning_codes": ", ".join(data.system.warning_codes) if data.system.warning_codes else None,
+            
+            # Neo 800 specific PV mappings
+            "pv1_voltage": data.solar.pv1_voltage,
+            "pv1_current": data.solar.pv1_current,
+            "pv1_power": data.solar.pv1_power,
+            "pv2_voltage": data.solar.pv2_voltage,
+            "pv2_current": data.solar.pv2_current,
+            "pv2_power": data.solar.pv2_power,
+        })
+        
+        # Noah 2000 specific mappings (only if data has battery attribute)
+        if hasattr(data, 'battery'):
+            key_mapping.update({
+                "battery_soc": data.battery.soc,
+                "battery_voltage": data.battery.voltage,
+                "battery_current": data.battery.current,
+                "battery_power": data.battery.power,
+                "battery_temperature": data.battery.temperature,
+                "battery_status": data.battery.status,
+            })
+        
+        # Noah 2000 specific mappings (only if data has load attribute)
+        if hasattr(data, 'load'):
+            key_mapping.update({
+                "load_power": data.load.power,
+                "load_energy_today": data.load.energy_today,
+                "load_energy_total": data.load.energy_total,
+            })
         
         return key_mapping.get(self.entity_description.key)
     
@@ -328,7 +474,7 @@ class NoahSensor(CoordinatorEntity[NoahDataUpdateCoordinator], SensorEntity):
         if not self.coordinator.data:
             return {}
         
-        data: NoahData = self.coordinator.data
+        data = self.coordinator.data
         
         # Add common attributes
         attrs = {
@@ -336,22 +482,28 @@ class NoahSensor(CoordinatorEntity[NoahDataUpdateCoordinator], SensorEntity):
         }
         
         # Add specific attributes based on sensor type
-        if self.entity_description.key.startswith("battery_"):
+        if self.entity_description.key.startswith("battery_") and hasattr(data, 'battery'):
             if data.battery.health is not None:
                 attrs["health"] = f"{data.battery.health}%"
             if data.battery.capacity is not None:
                 attrs["capacity"] = f"{data.battery.capacity} kWh"
         
-        elif self.entity_description.key.startswith("solar_"):
+        elif self.entity_description.key.startswith("solar_") or self.entity_description.key.startswith("pv"):
             if data.solar.efficiency is not None:
                 attrs["efficiency"] = f"{data.solar.efficiency}%"
+            if data.solar.temperature is not None:
+                attrs["inverter_temperature"] = f"{data.solar.temperature}°C"
         
-        elif self.entity_description.key.startswith("system_"):
+        elif self.entity_description.key.startswith("system_") or self.entity_description.key in ["inverter_temperature", "power_factor", "derating_mode"]:
             if data.system.error_code is not None:
                 attrs["error_code"] = data.system.error_code
             if data.system.error_message:
                 attrs["error_message"] = data.system.error_message
             if data.system.serial_number:
                 attrs["serial_number"] = data.system.serial_number
+            if data.system.fault_codes:
+                attrs["fault_codes"] = data.system.fault_codes
+            if data.system.warning_codes:
+                attrs["warning_codes"] = data.system.warning_codes
         
         return attrs

@@ -15,6 +15,10 @@ CONNECTION_TYPE_MQTT: Final = "mqtt"
 CONNECTION_TYPE_MODBUS_TCP: Final = "modbus_tcp"
 CONNECTION_TYPE_MODBUS_RTU: Final = "modbus_rtu"
 
+# Device types
+DEVICE_TYPE_NOAH: Final = "noah_2000"
+DEVICE_TYPE_NEO800: Final = "neo_800"
+
 # API endpoints
 GROWATT_API_BASE_URL: Final = "https://server.growatt.com"
 GROWATT_API_LOGIN: Final = "/login"
@@ -28,8 +32,8 @@ MQTT_TOPIC_SOLAR: Final = "solar"
 MQTT_TOPIC_GRID: Final = "grid"
 MQTT_TOPIC_LOAD: Final = "load"
 
-# Modbus register addresses (example - need actual Noah 2000 register map)
-MODBUS_REGISTERS = {
+# Modbus register addresses for Noah 2000 (battery system)
+NOAH_MODBUS_REGISTERS = {
     # Battery information
     "battery_soc": 1000,
     "battery_voltage": 1001,
@@ -61,6 +65,44 @@ MODBUS_REGISTERS = {
     "error_code": 1041,
     "firmware_version": 1042,
 }
+
+# Modbus register addresses for Neo 800 (inverter only)
+NEO800_MODBUS_REGISTERS = {
+    # Inverter status and control
+    "inverter_status": 0,
+    "warning_code": 105,
+    "fault_code": 106,
+    
+    # PV1 input
+    "pv1_voltage": 3,      # Scale: 0.1V
+    "pv1_current": 4,      # Scale: 0.1A
+    "pv1_power": 5,        # Scale: 1W
+    
+    # PV2 input
+    "pv2_voltage": 6,      # Scale: 0.1V
+    "pv2_current": 7,      # Scale: 0.1A
+    "pv2_power": 8,        # Scale: 1W
+    
+    # Output
+    "output_power": 35,    # Scale: 1W
+    "grid_voltage": 38,    # Scale: 0.1V
+    "grid_frequency": 13,  # Scale: 0.01Hz
+    
+    # Energy
+    "energy_today": 53,    # Scale: 0.1kWh
+    "energy_total": 55,    # Scale: 0.1kWh
+    
+    # Temperature and efficiency
+    "temperature": 93,     # Scale: 0.1°C
+    "power_factor": 30,    # Scale: 0.001
+    
+    # Device information
+    "firmware_version": 88,
+    "serial_number": 23,   # Multiple registers
+}
+
+# Combined register maps (legacy compatibility)
+MODBUS_REGISTERS = NOAH_MODBUS_REGISTERS
 
 # Device classes for sensors
 DEVICE_CLASS_BATTERY = "battery"

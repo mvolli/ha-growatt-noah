@@ -18,6 +18,8 @@ from .const import (
     CONNECTION_TYPE_MQTT,
     CONNECTION_TYPE_MODBUS_TCP,
     CONNECTION_TYPE_MODBUS_RTU,
+    DEVICE_TYPE_NOAH,
+    DEVICE_TYPE_NEO800,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_PORT_MODBUS,
     DEFAULT_PORT_MQTT,
@@ -26,7 +28,16 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 # Configuration step schemas
-STEP_USER_DATA_SCHEMA = vol.Schema(
+STEP_DEVICE_TYPE_SCHEMA = vol.Schema(
+    {
+        vol.Required("device_type", default=DEVICE_TYPE_NOAH): vol.In([
+            DEVICE_TYPE_NOAH,
+            DEVICE_TYPE_NEO800,
+        ]),
+    }
+)
+
+STEP_CONNECTION_TYPE_SCHEMA = vol.Schema(
     {
         vol.Required("connection_type"): vol.In([
             CONNECTION_TYPE_API,
@@ -82,6 +93,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     # Create API client for testing
     api_client = GrowattNoahAPI(
         connection_type=data["connection_type"],
+        device_type=data.get("device_type", DEVICE_TYPE_NOAH),
         host=data.get(CONF_HOST) or data.get("serial_port"),
         port=data.get(CONF_PORT) or data.get("baudrate"),
         username=data.get(CONF_USERNAME),
@@ -97,7 +109,8 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
             raise CannotConnect("Connection test failed")
         
         # If we get here, connection is successful
-        return {"title": f"Noah 2000 ({data['connection_type'].upper()})"}
+        device_name = "Neo 800" if data.get("device_type") == DEVICE_TYPE_NEO800 else "Noah 2000"
+        return {"title": f"Growatt {device_name} ({data['connection_type'].upper()})"}
     
     except CannotConnect:
         raise
@@ -112,19 +125,39 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Growatt Noah 2000."""
+    """Handle a config flow for Growatt Noah 2000 and Neo 800."""
     
     VERSION = 1
     
     def __init__(self) -> None:
         """Initialize the config flow."""
+        self.device_type: str | None = None
         self.connection_type: str | None = None
         self.config_data: dict[str, Any] = {}
     
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle the initial step."""
+        """Handle the initial step - device type selection."""
+        errors: dict[str, str] = {}
+        
+        if user_input is not None:
+            self.device_type = user_input["device_type"]
+            self.config_data["device_type"] = self.device_type
+            
+            # Move to connection type selection
+            return await self.async_step_connection_type()
+        
+        return self.async_show_form(
+            step_id="user",
+            data_schema=STEP_DEVICE_TYPE_SCHEMA,
+            errors=errors,
+        )
+    
+    async def async_step_connection_type(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle connection type selection."""
         errors: dict[str, str] = {}
         
         if user_input is not None:
@@ -141,8 +174,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return await self.async_step_modbus_rtu()
         
         return self.async_show_form(
-            step_id="user",
-            data_schema=STEP_USER_DATA_SCHEMA,
+            step_id="connection_type",
+            data_schema=STEP_CONNECTION_TYPE_SCHEMA,
             errors=errors,
         )
     
@@ -154,6 +187,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         
         if user_input is not None:
             user_input["connection_type"] = self.connection_type
+            user_input["device_type"] = self.device_type
             
             try:
                 info = await validate_input(self.hass, user_input)
@@ -181,6 +215,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         
         if user_input is not None:
             user_input["connection_type"] = self.connection_type
+            user_input["device_type"] = self.device_type
             
             try:
                 info = await validate_input(self.hass, user_input)
@@ -206,6 +241,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         
         if user_input is not None:
             user_input["connection_type"] = self.connection_type
+            user_input["device_type"] = self.device_type
             
             try:
                 info = await validate_input(self.hass, user_input)

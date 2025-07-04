@@ -1,6 +1,6 @@
 {
   "domain": "growatt_noah",
-  "name": "Growatt Noah 2000",
+  "name": "Growatt Noah 2000 & Neo 800",
   "codeowners": ["@mvolli"],
   "config_flow": true,
   "dependencies": [],
@@ -14,5 +14,5 @@
     "asyncio-mqtt>=0.11.0",
     "pymodbus>=3.0.0"
   ],
-  "version": "1.0.2"
+  "version": "2.0.0"
 }
