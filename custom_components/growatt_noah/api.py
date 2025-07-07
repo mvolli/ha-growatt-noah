@@ -11,6 +11,8 @@ import aiohttp
 from aiomqtt import Client as MQTTClient
 from pymodbus.client import AsyncModbusTcpClient, AsyncModbusSerialClient
 from pymodbus.exceptions import ModbusException
+import hashlib
+from datetime import datetime
 
 from .const import (
     CONNECTION_TYPE_API,
@@ -33,7 +35,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class GrowattNoahAPI:
-    """Main API client for Growatt Noah 2000 and Neo 800."""
+    """Main API client for Growatt Noah 2000 and Neo 800 with advanced battery management."""
     
     def __init__(
         self,
@@ -47,6 +49,7 @@ class GrowattNoahAPI:
         mqtt_topic: str = "noah",
         device_id: Optional[str] = None,
         timeout: int = DEFAULT_TIMEOUT,
+        server_url: str = "https://openapi.growatt.com/",
     ) -> None:
         """Initialize the API client."""
         self.connection_type = connection_type
@@ -59,6 +62,7 @@ class GrowattNoahAPI:
         self.mqtt_topic = mqtt_topic
         self.device_id = device_id
         self.timeout = timeout
+        self.server_url = server_url
         
         self._session: Optional[aiohttp.ClientSession] = None
         self._mqtt_client: Optional[MQTTClient] = None
@@ -66,6 +70,9 @@ class GrowattNoahAPI:
         self._auth_token: Optional[str] = None
         self._user_data: dict[str, Any] = {}
         self._mqtt_data: dict[str, Any] = {}
+        self._login_response: dict[str, Any] = {}
+        self._plant_list: list[dict[str, Any]] = []
+        self._device_list: list[dict[str, Any]] = []
     
     async def async_test_connection(self) -> bool:
         """Test the connection to the device."""
@@ -121,15 +128,22 @@ class GrowattNoahAPI:
         except Exception:
             return False
     
+    def _hash_password(self, password: str) -> str:
+        """Hash password using Growatt's MD5 algorithm."""
+        password_md5 = hashlib.md5(password.encode('utf-8')).hexdigest()
+        for i in range(0, len(password_md5), 2):
+            if password_md5[i] == '0':
+                password_md5 = password_md5[0:i] + 'c' + password_md5[i + 1:]
+        return password_md5
+    
     async def _authenticate_api(self) -> None:
-        """Authenticate with Growatt API using correct 2024 format."""
+        """Authenticate with Growatt API using official growattServer method."""
         if not self._session:
-            # Create session with correct headers for Growatt API
+            # Create session with official user agent
             headers = {
-                "User-Agent": "Noah2000-Integration/2.0.0",
+                "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 12; ha-noah)",
                 "Accept": "application/json, text/plain, */*",
                 "Content-Type": "application/x-www-form-urlencoded",
-                "Referer": "https://server.growatt.com/",
             }
             connector = aiohttp.TCPConnector(limit=10, limit_per_host=5)
             self._session = aiohttp.ClientSession(
@@ -138,98 +152,149 @@ class GrowattNoahAPI:
                 connector=connector
             )
         
-        # Growatt API requires specific form data format
+        # Hash password using Growatt's method
+        hashed_password = self._hash_password(self.password)
+        
         login_data = {
-            "account": self.username,
-            "password": self.password,
-            "validateCode": "",
-            "isReadPact": "0",
+            "userName": self.username,
+            "password": hashed_password,
         }
         
         async with self._session.post(
-            f"{GROWATT_API_BASE_URL}{GROWATT_API_LOGIN}",
+            f"{self.server_url}newTwoLoginAPI.do",
             data=login_data,
         ) as response:
             if response.status == 200:
                 result = await response.json()
-                # Growatt API returns different response structure
-                if result.get("result") == 1:
-                    # Store user info for subsequent requests
-                    self._auth_token = result.get("user", {}).get("id")
-                    self._user_data = result.get("user", {})
+                # Official API response structure
+                login_result = result.get("back", {})
+                if login_result.get("success"):
+                    self._auth_token = login_result.get("user", {}).get("id")
+                    self._user_data = login_result.get("user", {})
+                    self._login_response = login_result
+                    _LOGGER.info("Successfully authenticated with Growatt API")
                 else:
-                    error_msg = result.get("msg", "Unknown error")
+                    error_msg = login_result.get("msg", "Unknown error")
                     raise Exception(f"Login failed: {error_msg}")
             else:
                 text = await response.text()
                 raise Exception(f"HTTP {response.status}: {text}")
     
     async def _get_api_data(self) -> NoahData | Neo800Data:
-        """Get data from Growatt API using correct endpoints."""
-        if not self._auth_token:
-            await self._authenticate_api()
-        
-        if not self._session:
-            self._session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout))
-        
-        # First get plant list to find our device
-        plant_params = {
-            "currPage": "1",
-            "plantName": "",
-        }
-        
-        async with self._session.post(
-            f"{GROWATT_API_BASE_URL}{GROWATT_API_PLANT_LIST}",
-            data=plant_params,
-        ) as response:
-            if response.status != 200:
-                raise Exception(f"Failed to get plant list: HTTP {response.status}")
+        """Get data from Growatt API using advanced methods."""
+        if self.device_type == DEVICE_TYPE_NOAH:
+            # Use comprehensive Noah data collection
+            comprehensive_data = await self.get_comprehensive_noah_data()
             
-            plants_result = await response.json()
-            if plants_result.get("result") != 1:
-                raise Exception(f"Plant list error: {plants_result.get('msg', 'Unknown error')}")
+            # Extract battery status from Noah data
+            battery_data = self._extract_battery_status_from_noah(comprehensive_data)
             
-            plants = plants_result.get("datas", {}).get("data", [])
+            # Convert to our NoahData format
+            return NoahData.from_comprehensive_data(comprehensive_data, battery_data)
+        
+        else:
+            # For Neo 800, use simpler API approach
+            if not self._auth_token:
+                await self._authenticate_api()
+            
+            plants = await self.get_plant_list()
             if not plants:
                 raise Exception("No plants found in account")
             
-            # Use the first plant or find by device_id if specified
             target_plant = plants[0]
             if self.device_id:
                 for plant in plants:
-                    if plant.get("id") == self.device_id or plant.get("plantName") == self.device_id:
+                    if (plant.get("id") == self.device_id or 
+                        plant.get("plantId") == self.device_id or
+                        plant.get("plantName") == self.device_id):
                         target_plant = plant
                         break
             
-            plant_id = target_plant.get("id")
-            if not plant_id:
-                raise Exception("Could not determine plant ID")
+            plant_id = target_plant.get("id") or target_plant.get("plantId")
+            devices = await self.get_device_list(str(plant_id))
+            
+            # Find Neo 800 inverter data
+            neo_data = {}
+            for device in devices:
+                device_type = str(device.get("deviceType", "")).lower()
+                if "inverter" in device_type or "neo" in device_type:
+                    neo_data = device
+                    break
+            
+            # Convert to Neo800Data format
+            converted_data = self._convert_growatt_response(neo_data)
+            return Neo800Data.from_api_response(converted_data)
+    
+    def _extract_battery_status_from_noah(self, comprehensive_data: dict[str, Any]) -> dict[str, Any]:
+        """Extract comprehensive battery status from Noah data."""
+        battery_status = {}
         
-        # Now get device data for the plant
-        device_params = {
-            "plantId": plant_id,
-            "currPage": "1",
-        }
+        # Extract from Noah status
+        noah_status = comprehensive_data.get("noah_status", {})
+        if noah_status:
+            battery_status.update({
+                "soc": noah_status.get("soc"),
+                "charge_power": noah_status.get("chargePower"),
+                "discharge_power": noah_status.get("disChargePower"),
+                "work_mode": noah_status.get("workMode"),
+                "battery_num": noah_status.get("batteryNum"),
+                "status": noah_status.get("status"),
+            })
         
-        async with self._session.post(
-            f"{GROWATT_API_BASE_URL}{GROWATT_API_INVERTER_DATA}",
-            data=device_params,
-        ) as response:
-            if response.status == 200:
-                result = await response.json()
-                if result.get("result") == 1:
-                    data = result.get("obj", {})
-                    # Convert Growatt API response to our format
-                    converted_data = self._convert_growatt_response(data)
-                    
-                    if self.device_type == DEVICE_TYPE_NEO800:
-                        return Neo800Data.from_api_response(converted_data)
-                    else:
-                        return NoahData.from_api_response(converted_data)
-                else:
-                    raise Exception(f"API error: {result.get('msg', 'Unknown error')}")
-            else:
-                raise Exception(f"HTTP {response.status}: {await response.text()}")
+        # Extract from Noah info
+        noah_info = comprehensive_data.get("noah_info", {}).get("noah", {})
+        if noah_info:
+            battery_status.update({
+                "charging_soc_high_limit": noah_info.get("chargingSocHighLimit"),
+                "charging_soc_low_limit": noah_info.get("chargingSocLowLimit"),
+                "default_power": noah_info.get("defaultPower"),
+                "version": noah_info.get("version"),
+                "model": noah_info.get("model"),
+                "bat_sns": noah_info.get("batSns", []),
+                "formula_money": noah_info.get("formulaMoney"),
+                "money_unit": noah_info.get("moneyUnitText"),
+            })
+        
+        # Extract from storage data
+        storage_data = comprehensive_data.get("storage_data", {})
+        if storage_data:
+            # Storage detail
+            detail = storage_data.get("detail", {})
+            if detail and isinstance(detail, dict):
+                obj = detail.get("obj", {})
+                if obj:
+                    battery_status.update({
+                        "battery_voltage": obj.get("vBat"),
+                        "battery_current": obj.get("iBat"),
+                        "battery_power": obj.get("pBat"),
+                        "battery_temperature": obj.get("tempBat"),
+                        "capacity": obj.get("capacity"),
+                    })
+            
+            # Storage params
+            params = storage_data.get("params", {})
+            if params and isinstance(params, dict):
+                obj = params.get("obj", {})
+                if obj:
+                    battery_status.update({
+                        "rated_capacity": obj.get("ratedCapacity"),
+                        "actual_capacity": obj.get("actualCapacity"),
+                        "charge_cycles": obj.get("chargeCycles"),
+                        "health": obj.get("health"),
+                    })
+            
+            # Storage overview
+            overview = storage_data.get("overview", {})
+            if overview:
+                battery_status.update({
+                    "energy_today": overview.get("eChargeToday"),
+                    "energy_total": overview.get("eChargeTotal"),
+                    "discharge_today": overview.get("eDischargeToday"),
+                    "discharge_total": overview.get("eDischargeTotal"),
+                })
+        
+        # Remove None values
+        return {k: v for k, v in battery_status.items() if v is not None}
     
     def _convert_growatt_response(self, data: dict[str, Any]) -> dict[str, Any]:
         """Convert Growatt API response format to our expected format."""
@@ -407,3 +472,242 @@ class GrowattNoahAPI:
             return Neo800Data.from_modbus_data(register_data)
         else:
             return NoahData.from_modbus_data(register_data)
+    
+    # Advanced Noah 2000 API methods from official growattServer library
+    async def get_plant_list(self) -> list[dict[str, Any]]:
+        """Get list of plants connected to this account."""
+        if not self._auth_token:
+            await self._authenticate_api()
+        
+        if not self._session:
+            await self._authenticate_api()
+        
+        async with self._session.get(
+            f"{self.server_url}PlantListAPI.do",
+            params={"userId": self._auth_token},
+            allow_redirects=False
+        ) as response:
+            if response.status == 200:
+                result = await response.json()
+                self._plant_list = result.get("back", [])
+                return self._plant_list
+            else:
+                raise Exception(f"Failed to get plant list: HTTP {response.status}")
+    
+    async def get_device_list(self, plant_id: str) -> list[dict[str, Any]]:
+        """Get list of devices for a plant."""
+        if not self._session:
+            await self._authenticate_api()
+        
+        async with self._session.get(
+            f"{self.server_url}newTwoPlantAPI.do",
+            params={
+                "op": "getAllDeviceListTwo",
+                "plantId": plant_id,
+                "pageNum": 1,
+                "pageSize": 1
+            }
+        ) as response:
+            if response.status == 200:
+                result = await response.json()
+                device_list = result.get("deviceList", [])
+                self._device_list = device_list
+                return device_list
+            else:
+                raise Exception(f"Failed to get device list: HTTP {response.status}")
+    
+    async def is_plant_noah_system(self, plant_id: str) -> dict[str, Any]:
+        """Check if plant is a Noah system."""
+        if not self._session:
+            await self._authenticate_api()
+        
+        async with self._session.post(
+            f"{self.server_url}noahDeviceApi/noah/isPlantNoahSystem",
+            data={"plantId": plant_id}
+        ) as response:
+            if response.status == 200:
+                return await response.json()
+            else:
+                raise Exception(f"Failed to check Noah system: HTTP {response.status}")
+    
+    async def noah_system_status(self, serial_number: str) -> dict[str, Any]:
+        """Get Noah system status with comprehensive battery information."""
+        if not self._session:
+            await self._authenticate_api()
+        
+        async with self._session.post(
+            f"{self.server_url}noahDeviceApi/noah/getSystemStatus",
+            data={"deviceSn": serial_number}
+        ) as response:
+            if response.status == 200:
+                result = await response.json()
+                if result.get("result"):
+                    return result.get("obj", {})
+                else:
+                    raise Exception(f"Noah status error: {result.get('msg', 'Unknown error')}")
+            else:
+                raise Exception(f"Failed to get Noah status: HTTP {response.status}")
+    
+    async def noah_info(self, serial_number: str) -> dict[str, Any]:
+        """Get detailed Noah device information and configuration."""
+        if not self._session:
+            await self._authenticate_api()
+        
+        async with self._session.post(
+            f"{self.server_url}noahDeviceApi/noah/getNoahInfoBySn",
+            data={"deviceSn": serial_number}
+        ) as response:
+            if response.status == 200:
+                result = await response.json()
+                if result.get("result"):
+                    return result.get("obj", {})
+                else:
+                    raise Exception(f"Noah info error: {result.get('msg', 'Unknown error')}")
+            else:
+                raise Exception(f"Failed to get Noah info: HTTP {response.status}")
+    
+    async def storage_detail(self, storage_id: str) -> dict[str, Any]:
+        """Get detailed storage/battery parameters."""
+        if not self._session:
+            await self._authenticate_api()
+        
+        async with self._session.get(
+            f"{self.server_url}newStorageAPI.do",
+            params={
+                "op": "getStorageInfo_sacolar",
+                "storageId": storage_id
+            }
+        ) as response:
+            if response.status == 200:
+                return await response.json()
+            else:
+                raise Exception(f"Failed to get storage detail: HTTP {response.status}")
+    
+    async def storage_params(self, storage_id: str) -> dict[str, Any]:
+        """Get comprehensive storage parameters."""
+        if not self._session:
+            await self._authenticate_api()
+        
+        async with self._session.get(
+            f"{self.server_url}newStorageAPI.do",
+            params={
+                "op": "getStorageParams_sacolar",
+                "storageId": storage_id
+            }
+        ) as response:
+            if response.status == 200:
+                return await response.json()
+            else:
+                raise Exception(f"Failed to get storage params: HTTP {response.status}")
+    
+    async def storage_energy_overview(self, plant_id: str, storage_id: str) -> dict[str, Any]:
+        """Get storage energy overview."""
+        if not self._session:
+            await self._authenticate_api()
+        
+        async with self._session.post(
+            f"{self.server_url}newStorageAPI.do?op=getEnergyOverviewData_sacolar",
+            params={
+                "plantId": plant_id,
+                "storageSn": storage_id
+            }
+        ) as response:
+            if response.status == 200:
+                result = await response.json()
+                return result.get("obj", {})
+            else:
+                raise Exception(f"Failed to get energy overview: HTTP {response.status}")
+    
+    async def get_comprehensive_noah_data(self) -> dict[str, Any]:
+        """Get comprehensive Noah 2000 data using all available endpoints."""
+        if self.device_type != DEVICE_TYPE_NOAH:
+            raise ValueError("This method is only for Noah 2000 devices")
+        
+        try:
+            # Step 1: Get plant list
+            plants = await self.get_plant_list()
+            if not plants:
+                raise Exception("No plants found")
+            
+            # Use first plant or find by device_id
+            target_plant = plants[0]
+            if self.device_id:
+                for plant in plants:
+                    if (plant.get("id") == self.device_id or 
+                        plant.get("plantId") == self.device_id or
+                        plant.get("plantName") == self.device_id):
+                        target_plant = plant
+                        break
+            
+            plant_id = target_plant.get("id") or target_plant.get("plantId")
+            
+            # Step 2: Check if it's a Noah system
+            noah_check = await self.is_plant_noah_system(str(plant_id))
+            noah_obj = noah_check.get("obj", {})
+            
+            if not noah_obj.get("isPlantNoahSystem") and not noah_obj.get("isPlantHaveNoah"):
+                _LOGGER.warning("Plant %s doesn't appear to be a Noah system", plant_id)
+            
+            # Step 3: Get device list
+            devices = await self.get_device_list(str(plant_id))
+            
+            # Step 4: Find Noah device
+            noah_device = None
+            storage_device = None
+            
+            for device in devices:
+                device_type = str(device.get("deviceType", "")).lower()
+                device_sn = device.get("deviceSn") or device.get("serialNum")
+                
+                if ("noah" in device_type or "storage" in device_type or 
+                    device_sn == noah_obj.get("deviceSn")):
+                    if "noah" in device_type:
+                        noah_device = device
+                    elif "storage" in device_type:
+                        storage_device = device
+            
+            # Use the Noah device SN from the check if we have it
+            if noah_obj.get("deviceSn"):
+                device_sn = noah_obj.get("deviceSn")
+            elif noah_device:
+                device_sn = noah_device.get("deviceSn") or noah_device.get("serialNum")
+            elif storage_device:
+                device_sn = storage_device.get("deviceSn") or storage_device.get("serialNum")
+            else:
+                raise Exception("No Noah or storage device found in plant")
+            
+            # Step 5: Get comprehensive data
+            noah_status = await self.noah_system_status(device_sn)
+            noah_info = await self.noah_info(device_sn)
+            
+            # Try to get storage data if we have a storage device
+            storage_data = {}
+            if storage_device:
+                storage_sn = storage_device.get("deviceSn") or storage_device.get("serialNum")
+                try:
+                    storage_detail = await self.storage_detail(storage_sn)
+                    storage_params = await self.storage_params(storage_sn)
+                    storage_overview = await self.storage_energy_overview(str(plant_id), storage_sn)
+                    
+                    storage_data = {
+                        "detail": storage_detail,
+                        "params": storage_params,
+                        "overview": storage_overview
+                    }
+                except Exception as e:
+                    _LOGGER.warning("Failed to get storage data: %s", e)
+            
+            return {
+                "plant": target_plant,
+                "noah_check": noah_obj,
+                "devices": devices,
+                "noah_status": noah_status,
+                "noah_info": noah_info,
+                "storage_data": storage_data,
+                "device_sn": device_sn,
+                "plant_id": plant_id
+            }
+            
+        except Exception as e:
+            _LOGGER.error("Failed to get comprehensive Noah data: %s", e)
+            raise
