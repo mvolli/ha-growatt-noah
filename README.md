@@ -1,5 +1,13 @@
 # Growatt Noah 2000 & Neo 800 Integration for Home Assistant
 
+[![GitHub Release][releases-shield]][releases]
+[![GitHub Activity][commits-shield]][commits]
+[![License][license-shield]](LICENSE)
+[![hacs][hacsbadge]][hacs]
+
+![Project Maintenance][maintenance-shield]
+[![BuyMeCoffee][buymecoffeebadge]][buymecoffee]
+
 A comprehensive Home Assistant integration for monitoring Growatt Noah 2000 battery systems and Neo 800 micro-inverters.
 
 ## Features
@@ -150,3 +158,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 **Note**: This integration is not affiliated with Growatt. Use at your own risk and ensure compliance with your device warranty and local regulations.
+
+[buymecoffee]: https://www.buymeacoffee.com/mvolli
+[buymecoffeebadge]: https://img.shields.io/badge/buy%20me%20a%20coffee-donate-yellow.svg?style=for-the-badge
+[commits-shield]: https://img.shields.io/github/commit-activity/y/mvolli/ha-growatt-noah.svg?style=for-the-badge
+[commits]: https://github.com/mvolli/ha-growatt-noah/commits/main
+[hacs]: https://github.com/hacs/integration
+[hacsbadge]: https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge
+[license-shield]: https://img.shields.io/github/license/mvolli/ha-growatt-noah.svg?style=for-the-badge
+[maintenance-shield]: https://img.shields.io/badge/maintainer-%40mvolli-blue.svg?style=for-the-badge
+[releases-shield]: https://img.shields.io/github/release/mvolli/ha-growatt-noah.svg?style=for-the-badge
+[releases]: https://github.com/mvolli/ha-growatt-noah/releases

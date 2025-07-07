@@ -15,5 +15,12 @@ jobs:
         uses: "hacs/action@main"
         with:
           category: "integration"
-      - name: Hassfest validation
-        uses: "home-assistant/actions/hassfest@master"
+          comment: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  hassfest:
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: "actions/checkout@v4"
+      - uses: home-assistant/actions/hassfest@master

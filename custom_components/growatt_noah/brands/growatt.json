@@ -1,0 +1,7 @@
+{
+  "domain": "growatt_noah",
+  "name": "Growatt",
+  "integrations": ["growatt_noah"],
+  "iot_standards": ["mqtt"],
+  "iot_class": "local_polling"
+}
