@@ -225,6 +225,8 @@ class GrowattNoahAPI:
             try:
                 # Get real Noah data using direct API calls
                 noah_status = await self.noah_system_status(self.device_id)
+                _LOGGER.error("NOAH STATUS DATA DEBUG: %s", noah_status)
+                _LOGGER.error("NOAH STATUS KEYS: %s", list(noah_status.keys()) if noah_status else "None")
                 
                 # Extract battery data from Noah status
                 battery_data = {
@@ -239,6 +241,7 @@ class GrowattNoahAPI:
                     "system_status": "Online" if noah_status.get("status") == 1 else "Offline"
                 }
                 
+                _LOGGER.error("BATTERY DATA DEBUG: %s", battery_data)
                 return NoahData.from_api_response(battery_data)
                 
             except Exception as e:
