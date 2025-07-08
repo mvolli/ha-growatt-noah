@@ -82,6 +82,22 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
         name="Battery Status",
         icon="mdi:battery-heart",
     ),
+    SensorEntityDescription(
+        key="battery_energy_charged_today",
+        name="Battery Energy Charged Today",
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        icon="mdi:battery-plus",
+    ),
+    SensorEntityDescription(
+        key="battery_energy_discharged_today",
+        name="Battery Energy Discharged Today",
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        icon="mdi:battery-minus",
+    ),
     
     # Solar sensors
     SensorEntityDescription(
@@ -341,7 +357,8 @@ class NoahSensor(CoordinatorEntity[NoahDataUpdateCoordinator], SensorEntity):
         super().__init__(coordinator)
         
         self.entity_description = description
-        self._attr_unique_id = f"{entry.entry_id}_{description.key}"
+        self._attr_unique_id = f"noah2000_{description.key}"
+        self._attr_object_id = f"noah2000_{description.key}"
         device_type = entry.data.get("device_type", "noah_2000")
         device_name = "Growatt Noah 2000"
         device_model = "Noah 2000"
@@ -420,6 +437,8 @@ class NoahSensor(CoordinatorEntity[NoahDataUpdateCoordinator], SensorEntity):
                 "battery_power": data.battery.power,
                 "battery_temperature": data.battery.temperature,
                 "battery_status": data.battery.status,
+                "battery_energy_charged_today": data.battery.energy_charged_today or 0,
+                "battery_energy_discharged_today": data.battery.energy_discharged_today or 0,
             })
         
         # Noah 2000 specific mappings (only if data has load attribute)

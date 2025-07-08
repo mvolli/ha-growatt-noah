@@ -94,7 +94,8 @@ class NoahNumber(CoordinatorEntity[NoahDataUpdateCoordinator], NumberEntity):
         super().__init__(coordinator)
         
         self.entity_description = description
-        self._attr_unique_id = f"{entry.entry_id}_{description.key}"
+        self._attr_unique_id = f"noah2000_{description.key}"
+        self._attr_object_id = f"noah2000_{description.key}"
         self._api_client = api_client
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
