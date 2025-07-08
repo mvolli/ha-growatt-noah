@@ -12,9 +12,10 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.entity import EntityCategory
 
 from . import NoahDataUpdateCoordinator
-from .const import DOMAIN, ENTITY_CATEGORY_DIAGNOSTIC
+from .const import DOMAIN
 from .models import NoahData
 
 # Define binary sensor entities
@@ -42,7 +43,7 @@ BINARY_SENSORS: tuple[BinarySensorEntityDescription, ...] = (
         name="System Error",
         device_class=BinarySensorDeviceClass.PROBLEM,
         icon="mdi:alert-circle",
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     BinarySensorEntityDescription(
         key="battery_low",
