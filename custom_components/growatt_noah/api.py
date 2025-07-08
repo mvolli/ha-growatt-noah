@@ -181,32 +181,26 @@ class GrowattNoahAPI:
         return password_md5
     
     async def _authenticate_api(self) -> None:
-        """Authenticate with Growatt API - EXACTLY like official integration."""
-        try:
-            # Import and use growattServer exactly like official integration
-            import asyncio
-            from growattServer import GrowattApi
-            
-            # Run the synchronous growattServer login in executor to avoid blocking
-            def sync_login():
-                api = GrowattApi()
-                login_result = api.login(self.username, self.password)
-                return api, login_result
-            
-            # Execute the sync operation in thread pool
-            loop = asyncio.get_event_loop()
-            api, login_result = await loop.run_in_executor(None, sync_login)
-            
-            if login_result and login_result.get('success'):
-                self._auth_token = login_result['user']['id'] 
-                self._user_data = login_result.get('user', {})
-                self._growatt_api = api
-                return
-            else:
-                raise Exception(f"Login failed: {login_result.get('msg', 'Unknown error') if login_result else 'No response'}")
-                
-        except Exception as e:
-            raise Exception(f"Authentication failed: {e}")
+        """Authenticate with Growatt API using run_in_executor to avoid blocking."""
+        import asyncio
+        from growattServer import GrowattApi
+        
+        def sync_login():
+            """Synchronous login function to run in executor."""
+            api = GrowattApi()
+            login_result = api.login(self.username, self.password)
+            return api, login_result
+        
+        # Execute the sync operation in thread pool to avoid blocking the event loop
+        loop = asyncio.get_event_loop()
+        api, login_result = await loop.run_in_executor(None, sync_login)
+        
+        if login_result and login_result.get('success'):
+            self._auth_token = login_result['user']['id'] 
+            self._user_data = login_result.get('user', {})
+            self._growatt_api = api
+        else:
+            raise Exception(f"Login failed: {login_result.get('msg', 'Unknown error') if login_result else 'No response'}")
     
     async def _get_api_data(self) -> NoahData | Neo800Data:
         """Get data from Growatt API using advanced methods."""
