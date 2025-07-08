@@ -132,7 +132,7 @@ class GrowattNoahAPI:
     # API methods
     async def _test_api_connection(self) -> bool:
         """Test Growatt API connection."""
-        _LOGGER.info("Testing API connection with username=%s", self.username)
+        _LOGGER.error("TESTING API CONNECTION DEBUG - username=%s", self.username)
         
         if not self.username or not self.password:
             _LOGGER.error("Missing username or password for API connection")
@@ -182,7 +182,7 @@ class GrowattNoahAPI:
     
     async def _authenticate_api(self) -> None:
         """Authenticate with Growatt API using official growattServer method."""
-        _LOGGER.info("Starting authentication with username=%s", self.username)
+        _LOGGER.error("STARTING AUTHENTICATION DEBUG - username=%s", self.username)
         
         # Use growattServer library exclusively - this is what the official integration uses
         try:
