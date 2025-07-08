@@ -189,9 +189,12 @@ class GrowattNoahAPI:
                 "Accept": "application/json, text/plain, */*",
                 "Content-Type": "application/x-www-form-urlencoded",
             }
+            # Enable cookie jar to maintain session cookies for Noah API
+            cookie_jar = aiohttp.CookieJar()
             self._session = aiohttp.ClientSession(
                 timeout=aiohttp.ClientTimeout(total=self.timeout),
-                headers=headers
+                headers=headers,
+                cookie_jar=cookie_jar
             )
         
         # Hash password using Growatt's method
@@ -606,18 +609,37 @@ class GrowattNoahAPI:
         if not self._auth_token:
             await self._authenticate_api()
         
+        # The Noah API requires both the auth token and session cookies
+        data = {
+            "deviceSn": serial_number,
+            "userId": self._auth_token  # Include user ID in request
+        }
+        
         async with self._session.post(
             "https://openapi.growatt.com/noahDeviceApi/noah/getSystemStatus",
-            data={"deviceSn": serial_number}
+            data=data
         ) as response:
             if response.status == 200:
-                result = await response.json()
-                if result.get("result"):
-                    noah_status = result.get("obj", {})
-                    _LOGGER.info("Noah system status response: %s", noah_status)
-                    return noah_status
-                else:
-                    raise Exception(f"Noah status error: {result.get('msg', 'Unknown error')}")
+                try:
+                    result = await response.json()
+                    if result.get("result"):
+                        noah_status = result.get("obj", {})
+                        _LOGGER.info("Noah system status response: %s", noah_status)
+                        return noah_status
+                    else:
+                        raise Exception(f"Noah status error: {result.get('msg', 'Unknown error')}")
+                except Exception as e:
+                    # If JSON parsing fails, check if we got redirected to login
+                    response_text = await response.text()
+                    if "login" in response_text.lower() or "jsessionid" in response_text.lower():
+                        # Session expired, re-authenticate
+                        _LOGGER.warning("Session expired, re-authenticating...")
+                        self._auth_token = None
+                        await self._authenticate_api()
+                        # Retry the request
+                        return await self.noah_system_status(serial_number)
+                    else:
+                        raise Exception(f"Failed to parse Noah status response: {e}")
             else:
                 raise Exception(f"Failed to get Noah status: HTTP {response.status}")
     
