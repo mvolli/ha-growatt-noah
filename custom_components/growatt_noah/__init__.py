@@ -106,11 +106,22 @@ class NoahDataUpdateCoordinator(DataUpdateCoordinator[NoahData]):
             _LOGGER,
             name=DOMAIN,
             update_interval=timedelta(seconds=scan_interval),
+            always_update=False,  # Only update when data actually changes
         )
     
     async def _async_update_data(self) -> NoahData:
         """Update data via library."""
         try:
-            return await self.api_client.async_get_data()
+            data = await self.api_client.async_get_data()
+            
+            # Log data quality for debugging
+            if data and hasattr(data, 'system') and data.system.status:
+                _LOGGER.debug("Data update successful - System status: %s", data.system.status)
+            else:
+                _LOGGER.warning("Received incomplete data from API")
+                
+            return data
+            
         except Exception as err:
+            _LOGGER.error("API communication failed: %s", err, exc_info=True)
             raise UpdateFailed(f"Error communicating with API: {err}") from err

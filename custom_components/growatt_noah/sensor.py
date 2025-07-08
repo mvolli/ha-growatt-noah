@@ -352,6 +352,8 @@ class NoahSensor(CoordinatorEntity[NoahDataUpdateCoordinator], SensorEntity):
             "manufacturer": "Growatt",
             "model": device_model,
             "sw_version": self._get_firmware_version(),
+            "serial_number": entry.data.get("device_id"),
+            "configuration_url": "https://server.growatt.com/",
         }
     
     def _get_firmware_version(self) -> str | None:
@@ -362,6 +364,16 @@ class NoahSensor(CoordinatorEntity[NoahDataUpdateCoordinator], SensorEntity):
         except Exception:
             pass
         return None
+    
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return (
+            super().available and 
+            self.coordinator.data is not None and
+            hasattr(self.coordinator.data, 'system') and
+            self.coordinator.data.system.status not in ["Offline", "Error", "Unknown"]
+        )
     
     @property
     def native_value(self) -> Any:

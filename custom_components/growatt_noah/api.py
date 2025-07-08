@@ -41,6 +41,7 @@ class GrowattNoahAPI:
         
         self._session: Optional[aiohttp.ClientSession] = None
         self._auth_token: Optional[str] = None
+        self._semaphore = asyncio.Semaphore(1)  # Limit concurrent requests
     
     async def async_test_connection(self) -> bool:
         """Test the connection to the Noah 2000 device."""
@@ -66,29 +67,30 @@ class GrowattNoahAPI:
     
     async def async_get_data(self) -> NoahData:
         """Get Noah 2000 device data."""
-        if not self._auth_token:
-            await self._authenticate_api()
-        
-        try:
-            # Get real Noah data using direct API call
-            noah_status = await self._noah_system_status(self.device_id)
-            _LOGGER.debug("Noah status retrieved: %s keys", len(noah_status.keys()) if noah_status else 0)
+        async with self._semaphore:
+            if not self._auth_token:
+                await self._authenticate_api()
             
-            # Convert Noah API response to structured data
-            battery_data = self._convert_noah_response(noah_status)
-            _LOGGER.debug("Converted battery data keys: %s", list(battery_data.keys()) if battery_data else "None")
-            
-            # Create NoahData object
-            noah_data_obj = NoahData.from_api_response(battery_data)
-            _LOGGER.debug("NoahData created - SOC: %s, Solar: %s, Status: %s", 
-                         noah_data_obj.battery.soc, noah_data_obj.solar.power, noah_data_obj.system.status)
-            
-            return noah_data_obj
-            
-        except Exception as e:
-            _LOGGER.error("Failed to get Noah data: %s", e)
-            # Return empty data if API call fails
-            return NoahData.from_api_response({})
+            try:
+                # Get real Noah data using direct API call
+                noah_status = await self._noah_system_status(self.device_id)
+                _LOGGER.debug("Noah status retrieved: %s keys", len(noah_status.keys()) if noah_status else 0)
+                
+                # Convert Noah API response to structured data
+                battery_data = self._convert_noah_response(noah_status)
+                _LOGGER.debug("Converted battery data keys: %s", list(battery_data.keys()) if battery_data else "None")
+                
+                # Create NoahData object
+                noah_data_obj = NoahData.from_api_response(battery_data)
+                _LOGGER.debug("NoahData created - SOC: %s, Solar: %s, Status: %s", 
+                             noah_data_obj.battery.soc, noah_data_obj.solar.power, noah_data_obj.system.status)
+                
+                return noah_data_obj
+                
+            except Exception as e:
+                _LOGGER.error("Failed to get Noah data: %s", e)
+                # Return empty data if API call fails
+                return NoahData.from_api_response({})
     
     async def async_close(self) -> None:
         """Close the API session."""

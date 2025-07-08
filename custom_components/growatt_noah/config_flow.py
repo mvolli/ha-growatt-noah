@@ -91,6 +91,12 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             
             try:
                 info = await validate_input(self.hass, user_input)
+                
+                # Set unique ID to prevent duplicate entries
+                device_id = user_input.get("device_id") or user_input.get(CONF_USERNAME)
+                await self.async_set_unique_id(device_id)
+                self._abort_if_unique_id_configured()
+                
             except CannotConnect:
                 errors["base"] = "cannot_connect"
             except InvalidAuth:
