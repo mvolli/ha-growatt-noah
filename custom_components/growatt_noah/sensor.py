@@ -388,10 +388,10 @@ class NoahSensor(CoordinatorEntity[NoahDataUpdateCoordinator], SensorEntity):
         
         data = self.coordinator.data
         
-        # Handle both NoahData and Neo800Data
+        # Handle NoahData
         key_mapping = {}
         
-        # Common mappings available for both device types
+        # Noah 2000 mappings
         key_mapping.update({
             # Solar
             "solar_power": data.solar.power,
@@ -418,14 +418,6 @@ class NoahSensor(CoordinatorEntity[NoahDataUpdateCoordinator], SensorEntity):
             "derating_mode": data.system.derating_mode,
             "fault_codes": ", ".join(data.system.fault_codes) if data.system.fault_codes else None,
             "warning_codes": ", ".join(data.system.warning_codes) if data.system.warning_codes else None,
-            
-            # Neo 800 specific PV mappings
-            "pv1_voltage": data.solar.pv1_voltage,
-            "pv1_current": data.solar.pv1_current,
-            "pv1_power": data.solar.pv1_power,
-            "pv2_voltage": data.solar.pv2_voltage,
-            "pv2_current": data.solar.pv2_current,
-            "pv2_power": data.solar.pv2_power,
         })
         
         # Noah 2000 specific mappings (only if data has battery attribute)

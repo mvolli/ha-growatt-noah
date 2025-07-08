@@ -1,4 +1,4 @@
-# Growatt Noah 2000 & Neo 800 Integration for Home Assistant
+# Growatt Noah 2000 Integration for Home Assistant
 
 [![GitHub Release][releases-shield]][releases]
 [![GitHub Activity][commits-shield]][commits]
@@ -8,30 +8,25 @@
 ![Project Maintenance][maintenance-shield]
 [![BuyMeCoffee][buymecoffeebadge]][buymecoffee]
 
-A comprehensive Home Assistant integration for monitoring Growatt Noah 2000 battery systems and Neo 800 micro-inverters.
+A comprehensive Home Assistant integration for monitoring Growatt Noah 2000 battery systems with optimized code for Raspberry Pi deployment.
 
 ## Features
 
-- **Dual Device Support**: Monitor both Noah 2000 battery systems and Neo 800 micro-inverters
-- **Multiple Connection Types**: API, MQTT, Modbus TCP, and Modbus RTU
-- **Comprehensive Monitoring**: 40+ sensors covering battery, solar, grid, and system metrics
+- **Noah 2000 Support**: Complete monitoring of Noah 2000 battery systems
+- **API Connection**: Growatt Cloud API integration with real-time data
+- **Energy Dashboard Ready**: Battery energy sensors for HA energy dashboard
+- **Optimized Performance**: Slim codebase designed for Raspberry Pi
 - **HACS Compatible**: Easy installation through Home Assistant Community Store
 
-## Supported Devices
+## Supported Device
 
 ### Noah 2000 (Battery System)
-- Battery: State of charge, voltage, current, power, temperature, health
-- Solar: Power generation, voltage, current, daily/total energy
-- Grid: Import/export power and energy, voltage, frequency
-- Load: Power consumption, daily/total energy
-- System: Status, mode, firmware version, error codes
-
-### Neo 800 (Micro-Inverter)
-- PV Panels: Dual MPPT monitoring (PV1 & PV2 voltage, current, power)
-- Solar: Total power generation, daily/total energy
-- Grid: Output power, voltage, frequency, energy export
-- Inverter: Temperature, power factor, derating mode
-- System: Status, fault codes, warning codes, firmware version
+- **Battery**: State of charge, voltage, current, power, temperature, status
+- **Solar**: Power generation, voltage, current, daily/total energy
+- **Grid**: Import/export power and energy, voltage, frequency
+- **Load**: Power consumption calculations
+- **System**: Status, mode, firmware version, work modes
+- **Energy Tracking**: Battery charge/discharge energy for energy dashboard
 
 ## Installation
 
@@ -44,7 +39,7 @@ A comprehensive Home Assistant integration for monitoring Growatt Noah 2000 batt
 5. Add `https://github.com/mvolli/ha-growatt-noah` as repository
 6. Select "Integration" as category
 7. Click "Add"
-8. Search for "Growatt Noah 2000 & Neo 800"
+8. Search for "Growatt Noah 2000"
 9. Click "Install"
 10. Restart Home Assistant
 
@@ -57,85 +52,127 @@ A comprehensive Home Assistant integration for monitoring Growatt Noah 2000 batt
 ## Configuration
 
 1. Go to Settings → Devices & Services → Add Integration
-2. Search for "Growatt Noah 2000 & Neo 800"
-3. Select your device type (Noah 2000 or Neo 800)
-4. Choose connection method:
+2. Search for "Growatt Noah 2000"
+3. Enter your Growatt account credentials
+4. Provide your Noah 2000 device serial number
 
-### Connection Methods
+### Connection Method
 
 #### 🌐 API Connection
-- **Requirements**: Growatt account credentials
-- **Limitations**: ⚠️ **API access restricted for individual users as of 2024**
-- **Use cases**: If you have installer account or API access approval from Growatt
-- **Configuration**: Username, password, optional plant ID
+- **Requirements**: Growatt account credentials and device serial number
+- **Benefits**: Real-time data directly from Growatt Cloud
+- **Configuration**: Username, password, device serial number
+- **Data Update**: Every 30 seconds with real Noah data
 
-#### 📡 MQTT Connection (Recommended)
-- **Requirements**: MQTT broker, device publishing data
-- **Benefits**: Local communication, real-time updates
-- **Use cases**: When device publishes to local MQTT broker
-- **Configuration**: MQTT broker, credentials, topic prefix
+## Energy Dashboard Setup
 
-#### 🔌 Modbus TCP/RTU (Limited Support)
-- **Requirements**: Direct network/serial connection to device
-- **Limitations**: ⚠️ **Most Growatt devices do NOT support Modbus TCP by default**
-- **Use cases**: Custom firmware or specific Growatt models with Modbus support
-- **Configuration**: IP address/serial port, device ID
-- **Note**: If you get "Connection refused" errors, your device likely doesn't support Modbus
+This integration provides battery energy sensors for Home Assistant's energy dashboard:
 
-## API Access Important Notes
+### Step 1: Install Integration
+Install and configure the Noah 2000 integration as described above.
 
-⚠️ **Growatt API Limitations (2024)**:
-- Individual user accounts **cannot directly access** the Growatt API
-- API access requires **installer account approval** from Growatt
-- Existing API keys for individual users are being **phased out**
-- **Recommended alternatives**: MQTT or Modbus connections for local access
+### Step 2: Add Energy Integration to configuration.yaml
+```yaml
+sensor:
+  # Battery Energy Charged Today
+  - platform: integration
+    source: sensor.noah2000_battery_charge_power
+    name: "Noah2000 Battery Energy Charged Today"
+    unique_id: "noah2000_battery_energy_charged_today"
+    unit_prefix: k
+    round: 3
+    method: left
+    
+  # Battery Energy Discharged Today
+  - platform: integration
+    source: sensor.noah2000_battery_discharge_power
+    name: "Noah2000 Battery Energy Discharged Today"
+    unique_id: "noah2000_battery_energy_discharged_today"
+    unit_prefix: k
+    round: 3
+    method: left
 
-For API access, you need:
-1. Installer account at https://oss.growatt.com/login
-2. Approval request submitted to Growatt
-3. Official API credentials provided by Growatt
+# Daily reset
+utility_meter:
+  noah2000_battery_charged_daily:
+    source: sensor.noah2000_battery_energy_charged_today
+    cycle: daily
+    name: "Noah2000 Battery Charged Daily"
+    
+  noah2000_battery_discharged_daily:
+    source: sensor.noah2000_battery_energy_discharged_today  
+    cycle: daily
+    name: "Noah2000 Battery Discharged Daily"
+```
+
+### Step 3: Configure Energy Dashboard
+1. Go to Settings → Dashboards → Energy
+2. Add Battery System
+3. **Energy into battery**: `sensor.noah2000_battery_charged_daily`
+4. **Energy from battery**: `sensor.noah2000_battery_discharged_daily`
+
+## Available Sensors
+
+All sensors use the naming format: `sensor.noah2000.{sensor_name}`
+
+### Battery Sensors
+- `sensor.noah2000.battery_soc` - State of Charge (%)
+- `sensor.noah2000.battery_power` - Net Battery Power (W)
+- `sensor.noah2000.battery_charge_power` - Charging Power (W)
+- `sensor.noah2000.battery_discharge_power` - Discharging Power (W)
+- `sensor.noah2000.battery_voltage` - Battery Voltage (V)
+- `sensor.noah2000.battery_current` - Battery Current (A)
+- `sensor.noah2000.battery_temperature` - Temperature (°C)
+- `sensor.noah2000.battery_status` - Status (Charging/Discharging/Idle)
+
+### Solar Sensors
+- `sensor.noah2000.solar_power` - Solar Power (W)
+- `sensor.noah2000.solar_energy_today` - Solar Energy Today (kWh)
+- `sensor.noah2000.solar_energy_total` - Total Solar Energy (kWh)
+
+### Grid Sensors
+- `sensor.noah2000.grid_power` - Grid Power (W)
+- `sensor.noah2000.grid_energy_exported_today` - Grid Export Today (kWh)
+- `sensor.noah2000.grid_energy_exported_total` - Total Grid Export (kWh)
+
+### System Sensors
+- `sensor.noah2000.system_status` - System Status
+- `sensor.noah2000.system_mode` - Work Mode
+- `sensor.noah2000.load_power` - Load Power (W)
+
+## Performance Optimization
+
+This integration is optimized for Raspberry Pi deployment:
+- **Minimal Dependencies**: Only requires `aiohttp`
+- **Efficient API Calls**: Single endpoint with comprehensive data
+- **Smart Session Management**: Cookie-based authentication
+- **Reduced Memory Usage**: Streamlined data models
+
+## Troubleshooting
+
+### API Connection Issues
+- **Error**: Authentication failed
+  - **Solution**: Verify Growatt account credentials
+  - **Check**: Device serial number is correct
+
+### Missing Energy Sensors
+- **Issue**: Battery energy sensors not appearing
+  - **Solution**: Add the integration sensors to configuration.yaml
+  - **Restart**: Home Assistant after configuration changes
+
+### Performance Issues
+- **Slow Updates**: Check network connectivity to Growatt Cloud
+- **High CPU**: Ensure only Noah 2000 integration is running
 
 ## Device Compatibility
 
 ### Tested Devices
 - ✅ Growatt Noah 2000 Battery System
-- ✅ Growatt Neo 800M-X Micro-Inverter
 
-### Communication Protocols
-- ✅ Growatt Cloud API (with proper credentials)
-- ✅ MQTT over TLS (Neo 800 native protocol)
-- ✅ Modbus RTU/TCP (standard industrial protocol)
-
-## Troubleshooting
-
-### API Connection Issues
-- **Error**: "Permission denied" or "error_code: 10011"
-  - **Solution**: Use MQTT or Modbus connection instead
-  - **Reason**: Individual API access restricted
-
-### MQTT Connection Issues
-- **Check**: MQTT broker accessibility and credentials
-- **Verify**: Device is publishing to specified topics
-- **Topics**: `{prefix}/status`, `{prefix}/solar`, `{prefix}/battery`, etc.
-
-### Modbus Connection Issues
-- **Error**: "Connection refused" on port 502
-  - **Solution**: Switch to MQTT or API connection
-  - **Reason**: Most Growatt devices don't support Modbus TCP by default
-- **TCP**: If supported, verify IP address and port (default 502)
-- **RTU**: Check serial port, baudrate, and device ID
-- **Alternative**: Use RS485-to-Modbus converter if device has RS485 port
-
-## Advanced Configuration
-
-### Multiple Devices
-To monitor multiple devices, add separate integration instances for each device with unique configurations.
-
-### Custom Scan Intervals
-Adjust polling frequency based on your needs:
-- **Fast**: 10-30 seconds (local connections)
-- **Normal**: 30-60 seconds (API/MQTT)
-- **Slow**: 60-300 seconds (limited API access)
+### API Compatibility
+- ✅ Growatt Cloud API v2.0
+- ✅ Noah System Status endpoint
+- ✅ Real-time data retrieval
 
 ## Contributing
 
