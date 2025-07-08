@@ -25,8 +25,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import NoahDataUpdateCoordinator
-from .const import DOMAIN, ENTITY_CATEGORY_DIAGNOSTIC, DEVICE_TYPE_NEO800
-from .models import NoahData, Neo800Data
+from .const import DOMAIN, ENTITY_CATEGORY_DIAGNOSTIC
+from .models import NoahData
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -231,102 +231,70 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
         icon="mdi:chip",
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
-)
-
-# Neo 800 specific sensors (for inverter-only functionality)
-NEO800_SENSORS: tuple[SensorEntityDescription, ...] = (
-    # PV1 sensors
+    
+    # Additional Noah-specific sensors
     SensorEntityDescription(
-        key="pv1_voltage",
-        name="PV1 Voltage",
-        device_class=SensorDeviceClass.VOLTAGE,
-        state_class=SensorStateClass.MEASUREMENT,
-        native_unit_of_measurement=UnitOfElectricPotential.VOLT,
-        icon="mdi:flash",
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    SensorEntityDescription(
-        key="pv1_current",
-        name="PV1 Current",
-        device_class=SensorDeviceClass.CURRENT,
-        state_class=SensorStateClass.MEASUREMENT,
-        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
-        icon="mdi:current-ac",
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    SensorEntityDescription(
-        key="pv1_power",
-        name="PV1 Power",
+        key="charge_power",
+        name="Battery Charge Power",
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfPower.WATT,
-        icon="mdi:solar-panel",
-    ),
-    
-    # PV2 sensors
-    SensorEntityDescription(
-        key="pv2_voltage",
-        name="PV2 Voltage",
-        device_class=SensorDeviceClass.VOLTAGE,
-        state_class=SensorStateClass.MEASUREMENT,
-        native_unit_of_measurement=UnitOfElectricPotential.VOLT,
-        icon="mdi:flash",
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        icon="mdi:battery-plus",
     ),
     SensorEntityDescription(
-        key="pv2_current",
-        name="PV2 Current",
-        device_class=SensorDeviceClass.CURRENT,
-        state_class=SensorStateClass.MEASUREMENT,
-        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
-        icon="mdi:current-ac",
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    SensorEntityDescription(
-        key="pv2_power",
-        name="PV2 Power",
+        key="discharge_power",
+        name="Battery Discharge Power", 
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfPower.WATT,
-        icon="mdi:solar-panel",
+        icon="mdi:battery-minus",
     ),
-    
-    # Inverter specific sensors
     SensorEntityDescription(
-        key="inverter_temperature",
-        name="Inverter Temperature",
-        device_class=SensorDeviceClass.TEMPERATURE,
+        key="work_mode",
+        name="Work Mode",
+        icon="mdi:cog-outline",
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
+    SensorEntityDescription(
+        key="battery_count",
+        name="Battery Count",
+        icon="mdi:battery-sync",
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
+    SensorEntityDescription(
+        key="profit_today",
+        name="Profit Today",
+        device_class=SensorDeviceClass.MONETARY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:cash-plus",
+    ),
+    SensorEntityDescription(
+        key="profit_total",
+        name="Profit Total",
+        device_class=SensorDeviceClass.MONETARY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:cash-multiple",
+    ),
+    SensorEntityDescription(
+        key="groplug_power",
+        name="External Device Power",
+        device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
-        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
-        icon="mdi:thermometer",
+        native_unit_of_measurement=UnitOfPower.WATT,
+        icon="mdi:power-plug",
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     SensorEntityDescription(
-        key="power_factor",
-        name="Power Factor",
+        key="other_power",
+        name="Other Connected Power",
+        device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
-        icon="mdi:sine-wave",
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    SensorEntityDescription(
-        key="derating_mode",
-        name="Derating Mode",
-        icon="mdi:speedometer",
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    SensorEntityDescription(
-        key="fault_codes",
-        name="Fault Codes",
-        icon="mdi:alert-circle",
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    SensorEntityDescription(
-        key="warning_codes",
-        name="Warning Codes",
-        icon="mdi:alert",
+        native_unit_of_measurement=UnitOfPower.WATT,
+        icon="mdi:power-socket",
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
 )
+
 
 
 async def async_setup_entry(
@@ -339,13 +307,8 @@ async def async_setup_entry(
         
         entities = []
         
-        # Determine which sensors to create based on device type
-        if device_type == DEVICE_TYPE_NEO800:
-            # For Neo 800, use common sensors (excluding battery) plus Neo-specific sensors
-            sensor_descriptions = [s for s in SENSORS if not s.key.startswith("battery_")] + list(NEO800_SENSORS)
-        else:
-            # For Noah 2000, use all standard sensors
-            sensor_descriptions = SENSORS
+        # Use all Noah 2000 sensors
+        sensor_descriptions = SENSORS
         
         for description in sensor_descriptions:
             try:

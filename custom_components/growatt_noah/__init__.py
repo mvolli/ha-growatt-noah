@@ -1,4 +1,4 @@
-"""Growatt Noah 2000 and Neo 800 integration for Home Assistant."""
+"""Growatt Noah 2000 integration for Home Assistant."""
 from __future__ import annotations
 
 import asyncio
@@ -13,7 +13,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .const import DOMAIN, DEFAULT_SCAN_INTERVAL, DEVICE_TYPE_NOAH
 from .api import GrowattNoahAPI
-from .models import NoahData, Neo800Data
+from .models import NoahData
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,16 +28,12 @@ PLATFORMS: list[Platform] = [
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Growatt Noah from a config entry."""
     
-    # Initialize the API client based on connection method
+    # Initialize the API client for Noah 2000
     api_client = GrowattNoahAPI(
         connection_type=entry.data["connection_type"],
         device_type=entry.data.get("device_type", DEVICE_TYPE_NOAH),
-        host=entry.data.get("host"),
-        port=entry.data.get("port"),
         username=entry.data.get("username"),
         password=entry.data.get("password"),
-        mqtt_broker=entry.data.get("mqtt_broker"),
-        mqtt_topic=entry.data.get("mqtt_topic", "noah"),
         device_id=entry.data.get("device_id"),
     )
     
@@ -93,8 +89,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unload_ok
 
 
-class NoahDataUpdateCoordinator(DataUpdateCoordinator[NoahData | Neo800Data]):
-    """Class to manage fetching Noah/Neo data from the API."""
+class NoahDataUpdateCoordinator(DataUpdateCoordinator[NoahData]):
+    """Class to manage fetching Noah 2000 data from the API."""
     
     def __init__(
         self,
@@ -112,7 +108,7 @@ class NoahDataUpdateCoordinator(DataUpdateCoordinator[NoahData | Neo800Data]):
             update_interval=timedelta(seconds=scan_interval),
         )
     
-    async def _async_update_data(self) -> NoahData | Neo800Data:
+    async def _async_update_data(self) -> NoahData:
         """Update data via library."""
         try:
             return await self.api_client.async_get_data()
