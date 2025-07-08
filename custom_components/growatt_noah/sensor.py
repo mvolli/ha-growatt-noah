@@ -444,8 +444,8 @@ class NoahSensor(CoordinatorEntity[NoahDataUpdateCoordinator], SensorEntity):
                 "battery_status": data.battery.status,
                 "battery_charge_power": data.system.charge_power or 0,
                 "battery_discharge_power": data.system.discharge_power or 0,
-                "battery_energy_charged_today": data.battery.energy_charged_today,
-                "battery_energy_discharged_today": data.battery.energy_discharged_today,
+                "battery_energy_charged_today": data.battery.energy_charged_today or 0,
+                "battery_energy_discharged_today": data.battery.energy_discharged_today or 0,
             })
         
         # Noah 2000 specific mappings (only if data has load attribute)
