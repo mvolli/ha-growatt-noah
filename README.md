@@ -106,8 +106,15 @@ utility_meter:
 ```
 
 ### Step 3: Configure Energy Dashboard
+
+#### Option A: Use Native Energy Sensors (Recommended)
 1. Go to Settings → Dashboards → Energy
 2. Add Battery System
+3. **Energy into battery**: `sensor.noah2000_battery_energy_charged_today`
+4. **Energy from battery**: `sensor.noah2000_battery_energy_discharged_today`
+
+#### Option B: Use Integration Sensors (Alternative)
+If you prefer to use the integration method, use:
 3. **Energy into battery**: `sensor.noah2000_battery_charged_daily`
 4. **Energy from battery**: `sensor.noah2000_battery_discharged_daily`
 
@@ -120,6 +127,8 @@ All sensors use the naming format: `sensor.noah2000_{sensor_name}`
 - `sensor.noah2000_battery_power` - Net Battery Power (W)
 - `sensor.noah2000_battery_charge_power` - Charging Power (W)
 - `sensor.noah2000_battery_discharge_power` - Discharging Power (W)
+- `sensor.noah2000_battery_energy_charged_today` - Energy Charged Today (kWh) ⚡ **Energy Dashboard Ready**
+- `sensor.noah2000_battery_energy_discharged_today` - Energy Discharged Today (kWh) ⚡ **Energy Dashboard Ready**
 - `sensor.noah2000_battery_voltage` - Battery Voltage (V)
 - `sensor.noah2000_battery_current` - Battery Current (A)
 - `sensor.noah2000_battery_temperature` - Temperature (°C)

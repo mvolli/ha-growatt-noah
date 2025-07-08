@@ -6,7 +6,10 @@
       "Bash(git push:*)",
       "WebFetch(domain:growatt.pl)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:developers.home-assistant.io)"
+      "WebFetch(domain:developers.home-assistant.io)",
+      "WebFetch(domain:www.home-assistant.io)",
+      "Bash(mkdir:*)",
+      "WebFetch(domain:www.home-assistant.io)"
     ],
     "deny": []
   }
