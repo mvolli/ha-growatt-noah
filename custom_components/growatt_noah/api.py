@@ -231,17 +231,52 @@ class GrowattNoahAPI:
                 _LOGGER.error("NOAH STATUS DATA DEBUG: %s", noah_status)
                 _LOGGER.error("NOAH STATUS KEYS: %s", list(noah_status.keys()) if noah_status else "None")
                 
-                # Extract battery data from Noah status
+                # Extract battery data from Noah status using correct field names
+                # Convert string values to appropriate numeric types
+                soc = float(noah_status.get("soc", 0))
+                charge_power = float(noah_status.get("chargePower", 0))
+                discharge_power = float(noah_status.get("disChargePower", 0))
+                solar_power = float(noah_status.get("ppv", 0))  # ppv = PV power
+                grid_power = float(noah_status.get("pac", 0))   # pac = AC power
+                work_mode = int(noah_status.get("workMode", 0))
+                status = int(noah_status.get("status", 0))
+                
                 battery_data = {
-                    "battery_soc": noah_status.get("soc", 0),
-                    "battery_power": noah_status.get("chargePower", 0) - noah_status.get("disChargePower", 0),
-                    "battery_voltage": noah_status.get("vBat", 0),
-                    "battery_current": noah_status.get("iBat", 0),
-                    "battery_charging": noah_status.get("chargePower", 0) > 0,
-                    "solar_power": noah_status.get("pvPower", 0),
-                    "grid_power": noah_status.get("gridPower", 0),
-                    "load_power": noah_status.get("loadPower", 0),
-                    "system_status": "Online" if noah_status.get("status") == 1 else "Offline"
+                    # Battery fields
+                    "battery_soc": soc,
+                    "battery_power": charge_power - discharge_power,  # Net battery power
+                    "battery_voltage": 0,  # Not available in Noah API
+                    "battery_current": 0,  # Not available in Noah API
+                    "battery_temperature": 25,  # Default
+                    "battery_status": "Charging" if charge_power > 0 else ("Discharging" if discharge_power > 0 else "Idle"),
+                    
+                    # Solar fields
+                    "solar_power": solar_power,
+                    "solar_voltage": 0,  # Not available in Noah API
+                    "solar_current": 0,  # Not available in Noah API
+                    "solar_energy_today": float(noah_status.get("eacToday", 0)),
+                    "solar_energy_total": float(noah_status.get("eacTotal", 0)),
+                    
+                    # Grid fields
+                    "grid_power": grid_power,
+                    "grid_voltage": 0,  # Not available in Noah API
+                    "grid_frequency": 50,  # Default
+                    "grid_energy_imported_today": 0,  # Not available
+                    "grid_energy_exported_today": float(noah_status.get("eacToday", 0)),
+                    "grid_energy_imported_total": 0,  # Not available
+                    "grid_energy_exported_total": float(noah_status.get("eacTotal", 0)),
+                    "grid_connected": status == 1,
+                    
+                    # Load fields (calculated)
+                    "load_power": max(0, solar_power + discharge_power - charge_power - grid_power),
+                    "load_energy_today": 0,  # Not available
+                    "load_energy_total": 0,  # Not available
+                    
+                    # System fields
+                    "system_status": "Online" if status == 1 else "Offline",
+                    "system_mode": self._get_work_mode_text(work_mode),
+                    "serial_number": self.device_id,
+                    "model": noah_status.get("alias", "Noah 2000"),
                 }
                 
                 _LOGGER.error("BATTERY DATA DEBUG: %s", battery_data)
@@ -400,6 +435,17 @@ class GrowattNoahAPI:
             3: "Checking",
         }
         return status_map.get(status, f"Unknown ({status})")
+    
+    def _get_work_mode_text(self, work_mode: int) -> str:
+        """Convert Noah work mode to readable string."""
+        work_mode_map = {
+            0: "No Response",
+            1: "Load First",
+            2: "Battery First", 
+            3: "Grid First",
+            4: "Backup Mode",
+        }
+        return work_mode_map.get(work_mode, f"Unknown ({work_mode})")
     
     # MQTT methods
     async def _test_mqtt_connection(self) -> bool:
