@@ -186,6 +186,53 @@ class GrowattNoahAPI:
             else:
                 raise Exception(f"Failed to get Noah status: HTTP {response.status}")
     
+    async def async_set_noah_parameter(self, serial_number: str, parameter: str, value: Any) -> bool:
+        """Set Noah configuration parameter."""
+        if not self._auth_token:
+            await self._authenticate_api()
+        
+        # Map parameter names to API field names
+        parameter_map = {
+            "battery_charge_limit": "chargingSocHighLimit",
+            "battery_discharge_limit": "chargingSocLowLimit", 
+            "max_charge_power": "maxChargePower",
+            "max_discharge_power": "maxDischargePower",
+            "battery_charge_enable": "chargeEnable",
+            "battery_discharge_enable": "dischargeEnable",
+            "grid_export_enable": "gridExportEnable",
+        }
+        
+        api_parameter = parameter_map.get(parameter)
+        if not api_parameter:
+            raise Exception(f"Unknown parameter: {parameter}")
+        
+        # The Noah configuration API endpoint
+        data = {
+            "deviceSn": serial_number,
+            "userId": self._auth_token,
+            api_parameter: value
+        }
+        
+        async with self._session.post(
+            "https://openapi.growatt.com/noahDeviceApi/noah/setParameter",
+            data=data
+        ) as response:
+            if response.status == 200:
+                try:
+                    result = await response.json()
+                    if result.get("result"):
+                        _LOGGER.info("Noah parameter %s set to %s successfully", parameter, value)
+                        return True
+                    else:
+                        _LOGGER.error("Failed to set Noah parameter %s: %s", parameter, result.get('msg', 'Unknown error'))
+                        return False
+                except Exception as e:
+                    _LOGGER.error("Failed to parse Noah parameter response: %s", e)
+                    return False
+            else:
+                _LOGGER.error("Failed to set Noah parameter: HTTP %s", response.status)
+                return False
+    
     def _convert_noah_response(self, noah_status: dict[str, Any]) -> dict[str, Any]:
         """Convert Noah API response to structured data format."""
         if not noah_status:

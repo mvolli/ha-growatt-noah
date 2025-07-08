@@ -69,12 +69,15 @@ class NoahSwitch(CoordinatorEntity[NoahDataUpdateCoordinator], SwitchEntity):
         self.entity_description = description
         self._attr_unique_id = f"noah2000_{description.key}"
         self._api_client = api_client
+        self._entry = entry
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
             "name": "Growatt Noah 2000",
             "manufacturer": "Growatt",
             "model": "Noah 2000",
             "sw_version": self._get_firmware_version(),
+            "serial_number": entry.data.get("device_id"),
+            "configuration_url": "https://server.growatt.com/",
         }
     
     def _get_firmware_version(self) -> str | None:
@@ -114,37 +117,59 @@ class NoahSwitch(CoordinatorEntity[NoahDataUpdateCoordinator], SwitchEntity):
     
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
-        _LOGGER.warning(
-            "Switch control not yet implemented for %s. "
-            "This would require additional API endpoints.",
-            self.entity_description.key
-        )
-        
-        # Placeholder for actual implementation
-        # Would need to call appropriate API endpoint
-        # Example:
-        # await self._api_client.async_set_parameter(self.entity_description.key, True)
-        # await self.coordinator.async_request_refresh()
+        try:
+            device_id = self._entry.data.get("device_id")
+            if not device_id:
+                _LOGGER.error("No device ID available for %s", self.entity_description.key)
+                return
+            
+            success = await self._api_client.async_set_noah_parameter(
+                device_id, 
+                self.entity_description.key, 
+                True
+            )
+            
+            if success:
+                await self.coordinator.async_request_refresh()
+                _LOGGER.info("Successfully turned on %s", self.entity_description.key)
+            else:
+                _LOGGER.error("Failed to turn on %s", self.entity_description.key)
+                
+        except Exception as err:
+            _LOGGER.error("Error turning on %s: %s", self.entity_description.key, err)
     
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the switch off."""
-        _LOGGER.warning(
-            "Switch control not yet implemented for %s. "
-            "This would require additional API endpoints.",
-            self.entity_description.key
-        )
-        
-        # Placeholder for actual implementation
-        # Would need to call appropriate API endpoint
-        # Example:
-        # await self._api_client.async_set_parameter(self.entity_description.key, False)
-        # await self.coordinator.async_request_refresh()
+        try:
+            device_id = self._entry.data.get("device_id")
+            if not device_id:
+                _LOGGER.error("No device ID available for %s", self.entity_description.key)
+                return
+            
+            success = await self._api_client.async_set_noah_parameter(
+                device_id, 
+                self.entity_description.key, 
+                False
+            )
+            
+            if success:
+                await self.coordinator.async_request_refresh()
+                _LOGGER.info("Successfully turned off %s", self.entity_description.key)
+            else:
+                _LOGGER.error("Failed to turn off %s", self.entity_description.key)
+                
+        except Exception as err:
+            _LOGGER.error("Error turning off %s: %s", self.entity_description.key, err)
     
     @property
     def available(self) -> bool:
         """Return if entity is available."""
-        # For now, mark switches as unavailable since control is not implemented
-        return False
+        return (
+            super().available and 
+            self.coordinator.data is not None and
+            hasattr(self.coordinator.data, 'system') and
+            self.coordinator.data.system.status not in ["Offline", "Error", "Unknown"]
+        )
     
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
