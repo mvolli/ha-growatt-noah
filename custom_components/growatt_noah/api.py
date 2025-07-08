@@ -107,7 +107,7 @@ class GrowattNoahAPI:
         return password_md5
     
     async def _authenticate_api(self) -> None:
-        """Authenticate with Growatt API using aiohttp."""
+        """Authenticate with Growatt API using aiohttp with retry logic."""
         if not self._session:
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -130,21 +130,45 @@ class GrowattNoahAPI:
             "password": hashed_password,
         }
         
-        login_url = "https://openapi.growatt.com/newTwoLoginAPI.do"
+        # Try multiple API endpoints for better reliability
+        api_urls = [
+            "https://openapi.growatt.com/newTwoLoginAPI.do",
+            "https://server.growatt.com/newTwoLoginAPI.do"
+        ]
         
-        async with self._session.post(login_url, data=login_data) as response:
-            if response.status == 200:
-                result = await response.json()
-                login_result = result.get("back", {})
+        last_error = None
+        for attempt, login_url in enumerate(api_urls, 1):
+            try:
+                _LOGGER.debug("Authentication attempt %d using %s", attempt, login_url)
                 
-                if login_result.get("success"):
-                    self._auth_token = login_result.get("user", {}).get("id")
-                    _LOGGER.debug("Authentication successful")
-                else:
-                    raise Exception(f"Login failed: {login_result.get('msg', 'Authentication failed')}")
-            else:
-                text = await response.text()
-                raise Exception(f"HTTP {response.status}: {text}")
+                async with self._session.post(login_url, data=login_data) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        login_result = result.get("back", {})
+                        
+                        if login_result.get("success"):
+                            self._auth_token = login_result.get("user", {}).get("id")
+                            _LOGGER.info("Authentication successful with %s", login_url)
+                            return
+                        else:
+                            error_msg = login_result.get('msg', 'Authentication failed')
+                            _LOGGER.warning("Login failed on %s: %s", login_url, error_msg)
+                            last_error = f"Login failed: {error_msg}"
+                    else:
+                        text = await response.text()
+                        error_msg = f"HTTP {response.status}: {text}"
+                        _LOGGER.warning("HTTP error on %s: %s", login_url, error_msg)
+                        last_error = error_msg
+                        
+            except Exception as err:
+                _LOGGER.warning("Connection error on %s: %s", login_url, err)
+                last_error = str(err)
+                
+        # If we get here, all endpoints failed
+        if "507" in str(last_error):
+            raise Exception("Growatt API temporarily unavailable (Error 507). This is a server-side issue. Please try again later.")
+        else:
+            raise Exception(f"Authentication failed on all endpoints: {last_error}")
     
     async def _noah_system_status(self, serial_number: str) -> dict[str, Any]:
         """Get Noah system status with comprehensive battery information."""

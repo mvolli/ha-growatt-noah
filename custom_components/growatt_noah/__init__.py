@@ -123,5 +123,18 @@ class NoahDataUpdateCoordinator(DataUpdateCoordinator[NoahData]):
             return data
             
         except Exception as err:
-            _LOGGER.error("API communication failed: %s", err, exc_info=True)
-            raise UpdateFailed(f"Error communicating with API: {err}") from err
+            error_msg = str(err)
+            
+            # Handle specific API errors with user-friendly messages
+            if "507" in error_msg:
+                _LOGGER.warning("Growatt API temporarily unavailable (Error 507) - will retry automatically")
+                raise UpdateFailed("Growatt API temporarily unavailable - retrying automatically")
+            elif "Login failed" in error_msg:
+                _LOGGER.error("Authentication failed - check credentials: %s", error_msg)
+                raise UpdateFailed("Authentication failed - check Growatt credentials in integration settings")
+            elif "timeout" in error_msg.lower():
+                _LOGGER.warning("API timeout - will retry: %s", error_msg)
+                raise UpdateFailed("API timeout - retrying automatically")
+            else:
+                _LOGGER.error("API communication failed: %s", err, exc_info=True)
+                raise UpdateFailed(f"Error communicating with API: {err}") from err

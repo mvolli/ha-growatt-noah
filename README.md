@@ -151,18 +151,43 @@ This integration is optimized for Raspberry Pi deployment:
 ## Troubleshooting
 
 ### API Connection Issues
+
+#### Error 507 - API Temporarily Unavailable
+- **Issue**: `Login failed: 507` in logs
+- **Cause**: Growatt server-side issues or temporary outages
+- **Solution**: Wait and retry - integration will automatically retry with fallback servers
+- **Note**: This is a Growatt server issue, not an integration problem
+
+#### Authentication Failed
 - **Error**: Authentication failed
-  - **Solution**: Verify Growatt account credentials
-  - **Check**: Device serial number is correct
+- **Solution**: Verify Growatt account credentials
+- **Check**: Device serial number is correct
+- **Tip**: Try logging into https://server.growatt.com/ manually to verify credentials
+
+### Template Errors in Automations
+
+#### Solar Power Sensor Not Found
+- **Error**: `Template error: round got invalid input 'unknown'` with `sensor.solar_power`
+- **Issue**: Automation references wrong entity ID
+- **Solution**: Update your automation to use correct entity ID:
+  ```yaml
+  # Wrong:
+  "{{ states('sensor.solar_power') | round(0) }}W"
+  
+  # Correct:
+  "{{ states('sensor.noah2000_solar_power') | round(0, default=0) }}W"
+  ```
+- **Note**: All Noah 2000 sensors use the prefix `sensor.noah2000_`
 
 ### Missing Energy Sensors
 - **Issue**: Battery energy sensors not appearing
-  - **Solution**: Add the integration sensors to configuration.yaml
-  - **Restart**: Home Assistant after configuration changes
+- **Solution**: Add the integration sensors to configuration.yaml
+- **Restart**: Home Assistant after configuration changes
 
 ### Performance Issues
 - **Slow Updates**: Check network connectivity to Growatt Cloud
 - **High CPU**: Ensure only Noah 2000 integration is running
+- **Rate Limiting**: Integration includes automatic rate limiting to prevent IP blocking
 
 ## Device Compatibility
 
