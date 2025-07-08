@@ -117,12 +117,12 @@ class NoahSwitch(CoordinatorEntity[NoahDataUpdateCoordinator], SwitchEntity):
         """Turn the switch on."""
         _LOGGER.warning(
             "Switch control not yet implemented for %s. "
-            "This would require additional API endpoints or Modbus commands.",
+            "This would require additional API endpoints.",
             self.entity_description.key
         )
         
         # Placeholder for actual implementation
-        # Would need to call appropriate API endpoint or Modbus command
+        # Would need to call appropriate API endpoint
         # Example:
         # await self._api_client.async_set_parameter(self.entity_description.key, True)
         # await self.coordinator.async_request_refresh()
@@ -131,12 +131,12 @@ class NoahSwitch(CoordinatorEntity[NoahDataUpdateCoordinator], SwitchEntity):
         """Turn the switch off."""
         _LOGGER.warning(
             "Switch control not yet implemented for %s. "
-            "This would require additional API endpoints or Modbus commands.",
+            "This would require additional API endpoints.",
             self.entity_description.key
         )
         
         # Placeholder for actual implementation
-        # Would need to call appropriate API endpoint or Modbus command
+        # Would need to call appropriate API endpoint
         # Example:
         # await self._api_client.async_set_parameter(self.entity_description.key, False)
         # await self.coordinator.async_request_refresh()

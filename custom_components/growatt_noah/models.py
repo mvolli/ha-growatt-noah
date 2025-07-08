@@ -171,37 +171,6 @@ class NoahData:
             timestamp=timestamp,
         )
     
-    @classmethod
-    def from_mqtt_data(cls, topics_data: dict[str, Any]) -> NoahData:
-        """Create NoahData from MQTT topic data."""
-        # Combine data from different MQTT topics
-        combined_data = {}
-        for topic, data in topics_data.items():
-            if isinstance(data, dict):
-                combined_data.update(data)
-        
-        return cls.from_api_response(combined_data)
-    
-    @classmethod
-    def from_modbus_data(cls, registers: dict[str, Any]) -> NoahData:
-        """Create NoahData from Modbus register data."""
-        # Map register values to standard data format
-        mapped_data = {
-            "battery_soc": registers.get("battery_soc", 0),
-            "battery_voltage": registers.get("battery_voltage", 0) / 100,  # Scale factor
-            "battery_current": registers.get("battery_current", 0) / 100,
-            "battery_power": registers.get("battery_power", 0),
-            "battery_temperature": registers.get("battery_temperature", 0) / 10,
-            "solar_power": registers.get("solar_power", 0),
-            "solar_voltage": registers.get("solar_voltage", 0) / 100,
-            "solar_current": registers.get("solar_current", 0) / 100,
-            "grid_power": registers.get("grid_power", 0),
-            "grid_voltage": registers.get("grid_voltage", 0) / 100,
-            "load_power": registers.get("load_power", 0),
-            # Add more mappings as needed
-        }
-        
-        return cls.from_api_response(mapped_data)
     
     @classmethod
     def from_comprehensive_data(cls, comprehensive_data: dict[str, Any], battery_data: dict[str, Any]) -> NoahData:
