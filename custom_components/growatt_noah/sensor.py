@@ -251,22 +251,6 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
     
     # Additional Noah-specific sensors
     SensorEntityDescription(
-        key="charge_power",
-        name="Battery Charge Power",
-        device_class=SensorDeviceClass.POWER,
-        state_class=SensorStateClass.MEASUREMENT,
-        native_unit_of_measurement=UnitOfPower.WATT,
-        icon="mdi:battery-plus",
-    ),
-    SensorEntityDescription(
-        key="discharge_power",
-        name="Battery Discharge Power", 
-        device_class=SensorDeviceClass.POWER,
-        state_class=SensorStateClass.MEASUREMENT,
-        native_unit_of_measurement=UnitOfPower.WATT,
-        icon="mdi:battery-minus",
-    ),
-    SensorEntityDescription(
         key="work_mode",
         name="Work Mode",
         icon="mdi:cog-outline",

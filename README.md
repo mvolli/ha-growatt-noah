@@ -113,32 +113,32 @@ utility_meter:
 
 ## Available Sensors
 
-All sensors use the naming format: `sensor.noah2000.{sensor_name}`
+All sensors use the naming format: `sensor.noah2000_{sensor_name}`
 
 ### Battery Sensors
-- `sensor.noah2000.battery_soc` - State of Charge (%)
-- `sensor.noah2000.battery_power` - Net Battery Power (W)
-- `sensor.noah2000.battery_charge_power` - Charging Power (W)
-- `sensor.noah2000.battery_discharge_power` - Discharging Power (W)
-- `sensor.noah2000.battery_voltage` - Battery Voltage (V)
-- `sensor.noah2000.battery_current` - Battery Current (A)
-- `sensor.noah2000.battery_temperature` - Temperature (°C)
-- `sensor.noah2000.battery_status` - Status (Charging/Discharging/Idle)
+- `sensor.noah2000_battery_soc` - State of Charge (%)
+- `sensor.noah2000_battery_power` - Net Battery Power (W)
+- `sensor.noah2000_battery_charge_power` - Charging Power (W)
+- `sensor.noah2000_battery_discharge_power` - Discharging Power (W)
+- `sensor.noah2000_battery_voltage` - Battery Voltage (V)
+- `sensor.noah2000_battery_current` - Battery Current (A)
+- `sensor.noah2000_battery_temperature` - Temperature (°C)
+- `sensor.noah2000_battery_status` - Status (Charging/Discharging/Idle)
 
 ### Solar Sensors
-- `sensor.noah2000.solar_power` - Solar Power (W)
-- `sensor.noah2000.solar_energy_today` - Solar Energy Today (kWh)
-- `sensor.noah2000.solar_energy_total` - Total Solar Energy (kWh)
+- `sensor.noah2000_solar_power` - Solar Power (W)
+- `sensor.noah2000_solar_energy_today` - Solar Energy Today (kWh)
+- `sensor.noah2000_solar_energy_total` - Total Solar Energy (kWh)
 
 ### Grid Sensors
-- `sensor.noah2000.grid_power` - Grid Power (W)
-- `sensor.noah2000.grid_energy_exported_today` - Grid Export Today (kWh)
-- `sensor.noah2000.grid_energy_exported_total` - Total Grid Export (kWh)
+- `sensor.noah2000_grid_power` - Grid Power (W)
+- `sensor.noah2000_grid_energy_exported_today` - Grid Export Today (kWh)
+- `sensor.noah2000_grid_energy_exported_total` - Total Grid Export (kWh)
 
 ### System Sensors
-- `sensor.noah2000.system_status` - System Status
-- `sensor.noah2000.system_mode` - Work Mode
-- `sensor.noah2000.load_power` - Load Power (W)
+- `sensor.noah2000_system_status` - System Status
+- `sensor.noah2000_system_mode` - Work Mode
+- `sensor.noah2000_load_power` - Load Power (W)
 
 ## Performance Optimization
 
