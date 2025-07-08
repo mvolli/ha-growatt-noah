@@ -10,9 +10,10 @@ from homeassistant.const import PERCENTAGE, UnitOfPower
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.entity import EntityCategory
 
 from . import NoahDataUpdateCoordinator
-from .const import DOMAIN, ENTITY_CATEGORY_CONFIG
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ NUMBERS: tuple[NumberEntityDescription, ...] = (
         native_step=5,
         native_unit_of_measurement=PERCENTAGE,
         mode=NumberMode.SLIDER,
-        entity_category=ENTITY_CATEGORY_CONFIG,
+        entity_category=EntityCategory.CONFIG,
     ),
     NumberEntityDescription(
         key="battery_discharge_limit",
@@ -38,7 +39,7 @@ NUMBERS: tuple[NumberEntityDescription, ...] = (
         native_step=5,
         native_unit_of_measurement=PERCENTAGE,
         mode=NumberMode.SLIDER,
-        entity_category=ENTITY_CATEGORY_CONFIG,
+        entity_category=EntityCategory.CONFIG,
     ),
     NumberEntityDescription(
         key="max_charge_power",
@@ -49,7 +50,7 @@ NUMBERS: tuple[NumberEntityDescription, ...] = (
         native_step=100,
         native_unit_of_measurement=UnitOfPower.WATT,
         mode=NumberMode.BOX,
-        entity_category=ENTITY_CATEGORY_CONFIG,
+        entity_category=EntityCategory.CONFIG,
     ),
     NumberEntityDescription(
         key="max_discharge_power",
@@ -60,7 +61,7 @@ NUMBERS: tuple[NumberEntityDescription, ...] = (
         native_step=100,
         native_unit_of_measurement=UnitOfPower.WATT,
         mode=NumberMode.BOX,
-        entity_category=ENTITY_CATEGORY_CONFIG,
+        entity_category=EntityCategory.CONFIG,
     ),
 )
 

@@ -9,9 +9,10 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.entity import EntityCategory
 
 from . import NoahDataUpdateCoordinator
-from .const import DOMAIN, ENTITY_CATEGORY_CONFIG
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,19 +22,19 @@ SWITCHES: tuple[SwitchEntityDescription, ...] = (
         key="battery_charge_enable",
         name="Battery Charge Enable",
         icon="mdi:battery-charging",
-        entity_category=ENTITY_CATEGORY_CONFIG,
+        entity_category=EntityCategory.CONFIG,
     ),
     SwitchEntityDescription(
         key="battery_discharge_enable",
         name="Battery Discharge Enable",
         icon="mdi:battery-minus",
-        entity_category=ENTITY_CATEGORY_CONFIG,
+        entity_category=EntityCategory.CONFIG,
     ),
     SwitchEntityDescription(
         key="grid_export_enable",
         name="Grid Export Enable",
         icon="mdi:transmission-tower-export",
-        entity_category=ENTITY_CATEGORY_CONFIG,
+        entity_category=EntityCategory.CONFIG,
     ),
 )
 
