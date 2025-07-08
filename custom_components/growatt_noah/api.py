@@ -229,8 +229,6 @@ class GrowattNoahAPI:
             "battery_current": 0,  # Not available in Noah API
             "battery_temperature": 25,  # Default temperature
             "battery_status": "Charging" if charge_power > 0 else ("Discharging" if discharge_power > 0 else "Idle"),
-            "battery_energy_charged_today": 0,  # TODO: Implement energy integration
-            "battery_energy_discharged_today": 0,  # TODO: Implement energy integration
             
             # Solar fields
             "solar_power": solar_power,

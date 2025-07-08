@@ -1,0 +1,88 @@
+# Add this to your Home Assistant configuration.yaml file
+# to create battery energy sensors for the energy dashboard
+
+template:
+  - sensor:
+      # Battery Energy Charged Today - integrates charge power over time
+      - name: "Noah2000 Battery Energy Charged Today"
+        unique_id: "noah2000_battery_energy_charged_today"
+        device_class: energy
+        state_class: total_increasing
+        unit_of_measurement: "kWh"
+        icon: "mdi:battery-plus"
+        state: >
+          {% set charge_power = states('sensor.noah2000_battery_charge_power') | float(0) %}
+          {% if charge_power > 0 %}
+            {% set last_update = state_attr('sensor.noah2000_battery_energy_charged_today', 'last_reset') %}
+            {% set today = now().date() | string %}
+            {% if last_update != today %}
+              0
+            {% else %}
+              {% set current = states('sensor.noah2000_battery_energy_charged_today') | float(0) %}
+              {% set time_diff = (now() - states.sensor.noah2000_battery_charge_power.last_changed).total_seconds() / 3600 %}
+              {{ (current + (charge_power * time_diff / 1000)) | round(3) }}
+            {% endif %}
+          {% else %}
+            {{ states('sensor.noah2000_battery_energy_charged_today') | float(0) }}
+          {% endif %}
+        attributes:
+          last_reset: "{{ now().date() | string }}"
+
+      # Battery Energy Discharged Today - integrates discharge power over time  
+      - name: "Noah2000 Battery Energy Discharged Today"
+        unique_id: "noah2000_battery_energy_discharged_today"
+        device_class: energy
+        state_class: total_increasing
+        unit_of_measurement: "kWh"
+        icon: "mdi:battery-minus"
+        state: >
+          {% set discharge_power = states('sensor.noah2000_battery_discharge_power') | float(0) %}
+          {% if discharge_power > 0 %}
+            {% set last_update = state_attr('sensor.noah2000_battery_energy_discharged_today', 'last_reset') %}
+            {% set today = now().date() | string %}
+            {% if last_update != today %}
+              0
+            {% else %}
+              {% set current = states('sensor.noah2000_battery_energy_discharged_today') | float(0) %}
+              {% set time_diff = (now() - states.sensor.noah2000_battery_discharge_power.last_changed).total_seconds() / 3600 %}
+              {{ (current + (discharge_power * time_diff / 1000)) | round(3) }}
+            {% endif %}
+          {% else %}
+            {{ states('sensor.noah2000_battery_energy_discharged_today') | float(0) }}
+          {% endif %}
+        attributes:
+          last_reset: "{{ now().date() | string }}"
+
+# Alternative simpler approach using Riemann sum integration
+# Add these to your configuration.yaml instead of the template sensors above:
+
+sensor:
+  # Battery Energy Charged Today - using integration helper
+  - platform: integration
+    source: sensor.noah2000_battery_charge_power
+    name: "Noah2000 Battery Energy Charged Today"
+    unique_id: "noah2000_battery_energy_charged_today"
+    unit_prefix: k
+    round: 3
+    method: left
+    
+  # Battery Energy Discharged Today - using integration helper  
+  - platform: integration
+    source: sensor.noah2000_battery_discharge_power
+    name: "Noah2000 Battery Energy Discharged Today"
+    unique_id: "noah2000_battery_energy_discharged_today"
+    unit_prefix: k
+    round: 3
+    method: left
+
+# Utility meter to reset daily (add this section too)
+utility_meter:
+  noah2000_battery_charged_daily:
+    source: sensor.noah2000_battery_energy_charged_today
+    cycle: daily
+    name: "Noah2000 Battery Charged Daily"
+    
+  noah2000_battery_discharged_daily:
+    source: sensor.noah2000_battery_energy_discharged_today  
+    cycle: daily
+    name: "Noah2000 Battery Discharged Daily"
