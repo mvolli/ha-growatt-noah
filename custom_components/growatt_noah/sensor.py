@@ -99,24 +99,6 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
         icon="mdi:battery-minus",
     ),
     
-    # Battery Energy sensors for Energy Dashboard
-    SensorEntityDescription(
-        key="battery_energy_charged_today",
-        name="Battery Energy Charged Today",
-        device_class=SensorDeviceClass.ENERGY,
-        state_class=SensorStateClass.TOTAL_INCREASING,
-        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-        icon="mdi:battery-charging",
-    ),
-    SensorEntityDescription(
-        key="battery_energy_discharged_today",
-        name="Battery Energy Discharged Today",
-        device_class=SensorDeviceClass.ENERGY,
-        state_class=SensorStateClass.TOTAL_INCREASING,
-        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-        icon="mdi:battery-minus",
-    ),
-    
     # Solar sensors
     SensorEntityDescription(
         key="solar_power",
@@ -444,8 +426,6 @@ class NoahSensor(CoordinatorEntity[NoahDataUpdateCoordinator], SensorEntity):
                 "battery_status": data.battery.status,
                 "battery_charge_power": data.system.charge_power or 0,
                 "battery_discharge_power": data.system.discharge_power or 0,
-                "battery_energy_charged_today": data.battery.energy_charged_today or 0,
-                "battery_energy_discharged_today": data.battery.energy_discharged_today or 0,
             })
         
         # Noah 2000 specific mappings (only if data has load attribute)
