@@ -181,26 +181,43 @@ class GrowattNoahAPI:
         return password_md5
     
     async def _authenticate_api(self) -> None:
-        """Authenticate with Growatt API using run_in_executor to avoid blocking."""
-        import asyncio
-        from growattServer import GrowattApi
+        """Authenticate with Growatt API using native aiohttp (like official HA integration)."""
+        # Use same method as official HA Growatt integration
+        if not self._session:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "application/json, text/plain, */*",
+                "Content-Type": "application/x-www-form-urlencoded",
+            }
+            self._session = aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=self.timeout),
+                headers=headers
+            )
         
-        def sync_login():
-            """Synchronous login function to run in executor."""
-            api = GrowattApi()
-            login_result = api.login(self.username, self.password)
-            return api, login_result
+        # Hash password using Growatt's method
+        hashed_password = self._hash_password(self.password)
         
-        # Execute the sync operation in thread pool to avoid blocking the event loop
-        loop = asyncio.get_event_loop()
-        api, login_result = await loop.run_in_executor(None, sync_login)
+        login_data = {
+            "userName": self.username,
+            "password": hashed_password,
+        }
         
-        if login_result and login_result.get('success'):
-            self._auth_token = login_result['user']['id'] 
-            self._user_data = login_result.get('user', {})
-            self._growatt_api = api
-        else:
-            raise Exception(f"Login failed: {login_result.get('msg', 'Unknown error') if login_result else 'No response'}")
+        login_url = "https://openapi.growatt.com/newTwoLoginAPI.do"
+        
+        async with self._session.post(login_url, data=login_data) as response:
+            if response.status == 200:
+                result = await response.json()
+                login_result = result.get("back", {})
+                
+                if login_result.get("success"):
+                    self._auth_token = login_result.get("user", {}).get("id")
+                    self._user_data = login_result.get("user", {})
+                    self._login_response = login_result
+                else:
+                    raise Exception(f"Login failed: {login_result.get('msg', 'Authentication failed')}")
+            else:
+                text = await response.text()
+                raise Exception(f"HTTP {response.status}: {text}")
     
     async def _get_api_data(self) -> NoahData | Neo800Data:
         """Get data from Growatt API using advanced methods."""
