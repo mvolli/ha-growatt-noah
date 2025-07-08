@@ -9,7 +9,8 @@
       "WebFetch(domain:developers.home-assistant.io)",
       "WebFetch(domain:www.home-assistant.io)",
       "Bash(mkdir:*)",
-      "WebFetch(domain:www.home-assistant.io)"
+      "WebFetch(domain:www.home-assistant.io)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

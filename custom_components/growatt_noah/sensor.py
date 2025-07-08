@@ -368,12 +368,25 @@ class NoahSensor(CoordinatorEntity[NoahDataUpdateCoordinator], SensorEntity):
     @property
     def available(self) -> bool:
         """Return if entity is available."""
-        return (
+        basic_available = (
             super().available and 
             self.coordinator.data is not None and
-            hasattr(self.coordinator.data, 'system') and
-            self.coordinator.data.system.status not in ["Offline", "Error", "Unknown"]
+            hasattr(self.coordinator.data, 'system')
         )
+        
+        if not basic_available:
+            return False
+            
+        # For power sensors, be more lenient - they should be available if we have system data
+        if self.entity_description.key in ["battery_charge_power", "battery_discharge_power"]:
+            system_available = self.coordinator.data.system.status not in ["Error"]
+            _LOGGER.debug("Power sensor %s availability: basic=%s, system_status=%s, available=%s", 
+                         self.entity_description.key, basic_available, 
+                         self.coordinator.data.system.status, system_available)
+            return system_available
+        
+        # For other sensors, use stricter availability
+        return self.coordinator.data.system.status not in ["Offline", "Error", "Unknown"]
     
     @property
     def native_value(self) -> Any:
@@ -454,6 +467,11 @@ class NoahSensor(CoordinatorEntity[NoahDataUpdateCoordinator], SensorEntity):
         _LOGGER.debug("Sensor %s: Looking for key '%s' in data", 
                      self.entity_description.name, self.entity_description.key)
         _LOGGER.debug("Available keys: %s", list(key_mapping.keys()))
+        
+        # Additional debug for power sensors
+        if self.entity_description.key in ["battery_charge_power", "battery_discharge_power"]:
+            _LOGGER.debug("Power sensor debug - system.charge_power: %s, system.discharge_power: %s", 
+                         data.system.charge_power, data.system.discharge_power)
         
         value = key_mapping.get(self.entity_description.key)
         if value is None:

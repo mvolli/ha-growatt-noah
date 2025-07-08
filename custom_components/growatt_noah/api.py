@@ -168,6 +168,8 @@ class GrowattNoahAPI:
                     if result.get("result"):
                         noah_status = result.get("obj", {})
                         _LOGGER.info("Noah system status response: %s", noah_status)
+                        _LOGGER.debug("Raw Noah power values - chargePower: %s, disChargePower: %s", 
+                                     noah_status.get("chargePower"), noah_status.get("disChargePower"))
                         return noah_status
                     else:
                         raise Exception(f"Noah status error: {result.get('msg', 'Unknown error')}")
@@ -247,6 +249,14 @@ class GrowattNoahAPI:
             grid_power = float(noah_status.get("pac", 0))   # pac = AC power
             work_mode = int(noah_status.get("workMode", 0))
             status = int(noah_status.get("status", 0))
+            
+            # Validate power values are non-negative
+            charge_power = max(0, charge_power)
+            discharge_power = max(0, discharge_power)
+            solar_power = max(0, solar_power)
+            
+            _LOGGER.debug("Converted power values - charge: %s, discharge: %s, solar: %s", 
+                         charge_power, discharge_power, solar_power)
             
             # Additional Noah fields
             groplug_power = float(noah_status.get("groplugPower", 0))  # External device power
