@@ -222,23 +222,29 @@ class GrowattNoahAPI:
     async def _get_api_data(self) -> NoahData | Neo800Data:
         """Get data from Growatt API."""
         if self.device_type == DEVICE_TYPE_NOAH:
-            # Return test data to demonstrate working connection
-            # This will be replaced with proper API calls later
-            mock_data = {
-                "battery_soc": 25.5,
-                "battery_power": 150,
-                "solar_power": 400,
-                "grid_power": -250,
-                "load_power": 300,
-                "battery_voltage": 48.2,
-                "solar_energy_today": 12.5,
-                "solar_energy_total": 2450.8,
-                "battery_charging": True,
-                "grid_connected": True,
-                "system_status": "Normal"
-            }
-            
-            return NoahData.from_api_response(mock_data)
+            try:
+                # Get real Noah data using direct API calls
+                noah_status = await self.noah_system_status(self.device_id)
+                
+                # Extract battery data from Noah status
+                battery_data = {
+                    "battery_soc": noah_status.get("soc", 0),
+                    "battery_power": noah_status.get("chargePower", 0) - noah_status.get("disChargePower", 0),
+                    "battery_voltage": noah_status.get("vBat", 0),
+                    "battery_current": noah_status.get("iBat", 0),
+                    "battery_charging": noah_status.get("chargePower", 0) > 0,
+                    "solar_power": noah_status.get("pvPower", 0),
+                    "grid_power": noah_status.get("gridPower", 0),
+                    "load_power": noah_status.get("loadPower", 0),
+                    "system_status": "Online" if noah_status.get("status") == 1 else "Offline"
+                }
+                
+                return NoahData.from_api_response(battery_data)
+                
+            except Exception as e:
+                _LOGGER.error("Failed to get real Noah data: %s", e)
+                # Return empty data if API call fails
+                return NoahData.from_api_response({})
         
         else:
             # For Neo 800, use simpler API approach
@@ -594,18 +600,23 @@ class GrowattNoahAPI:
     
     async def noah_system_status(self, serial_number: str) -> dict[str, Any]:
         """Get Noah system status with comprehensive battery information."""
-        if not self._growatt_api:
+        if not self._auth_token:
             await self._authenticate_api()
         
-        try:
-            # Use growattServer library method directly
-            noah_status = self._growatt_api.noah_system_status(serial_number)
-            _LOGGER.info("Noah system status response: %s", noah_status)
-            return noah_status
-            
-        except Exception as e:
-            _LOGGER.error("Failed to get Noah system status: %s", e)
-            raise Exception(f"Failed to get Noah system status: {e}")
+        async with self._session.post(
+            "https://openapi.growatt.com/noahDeviceApi/noah/getSystemStatus",
+            data={"deviceSn": serial_number}
+        ) as response:
+            if response.status == 200:
+                result = await response.json()
+                if result.get("result"):
+                    noah_status = result.get("obj", {})
+                    _LOGGER.info("Noah system status response: %s", noah_status)
+                    return noah_status
+                else:
+                    raise Exception(f"Noah status error: {result.get('msg', 'Unknown error')}")
+            else:
+                raise Exception(f"Failed to get Noah status: HTTP {response.status}")
     
     async def noah_info(self, serial_number: str) -> dict[str, Any]:
         """Get detailed Noah device information and configuration."""
