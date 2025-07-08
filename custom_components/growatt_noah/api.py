@@ -181,43 +181,31 @@ class GrowattNoahAPI:
         return password_md5
     
     async def _authenticate_api(self) -> None:
-        """Authenticate with Growatt API using official growattServer method."""
-        _LOGGER.error("STARTING AUTHENTICATION DEBUG - username=%s", self.username)
-        
-        # Use growattServer library exclusively - this is what the official integration uses
+        """Authenticate with Growatt API - EXACTLY like official integration."""
         try:
+            # Import and use growattServer exactly like official integration
+            import asyncio
             from growattServer import GrowattApi
-            _LOGGER.info("Using growattServer library for authentication")
             
-            # Create API instance with the same parameters as official integration
-            api = GrowattApi(add_random_user_id=True, agent_identifier="ha-noah-integration")
+            # Run the synchronous growattServer login in executor to avoid blocking
+            def sync_login():
+                api = GrowattApi()
+                login_result = api.login(self.username, self.password)
+                return api, login_result
             
-            # Don't override server_url - let growattServer use its default
-            # This is key difference from your original code
+            # Execute the sync operation in thread pool
+            loop = asyncio.get_event_loop()
+            api, login_result = await loop.run_in_executor(None, sync_login)
             
-            # Synchronous login call from growattServer (this is blocking but fast)
-            login_response = api.login(self.username, self.password)
-            _LOGGER.info("growattServer login response keys: %s", list(login_response.keys()) if login_response else "None")
-            
-            if login_response and login_response.get('success'):
-                self._auth_token = login_response['user']['id']
-                self._user_data = login_response.get('user', {})
-                self._login_response = login_response
-                # Store the growattServer API instance for later use
+            if login_result and login_result.get('success'):
+                self._auth_token = login_result['user']['id'] 
+                self._user_data = login_result.get('user', {})
                 self._growatt_api = api
-                _LOGGER.info("Successfully authenticated with growattServer, user_id=%s", self._auth_token)
                 return
             else:
-                error_msg = login_response.get('msg', 'Unknown error') if login_response else 'No response'
-                _LOGGER.error("growattServer login failed: %s", error_msg)
-                raise Exception(f"Login failed: {error_msg}")
+                raise Exception(f"Login failed: {login_result.get('msg', 'Unknown error') if login_result else 'No response'}")
                 
-        except ImportError:
-            _LOGGER.error("growattServer library not available - this is required for authentication")
-            raise Exception("growattServer library is required but not available")
-            
         except Exception as e:
-            _LOGGER.error("growattServer authentication failed: %s", e)
             raise Exception(f"Authentication failed: {e}")
     
     async def _get_api_data(self) -> NoahData | Neo800Data:
