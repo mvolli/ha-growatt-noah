@@ -257,6 +257,7 @@ class GrowattNoahAPI:
             "system_mode": work_mode_text,
             "serial_number": self.device_id,
             "model": noah_status.get("alias", "Noah 2000"),
+            "firmware_version": noah_status.get("version", "Unknown"),
             
             # Additional Noah-specific fields
             "charge_power": charge_power,

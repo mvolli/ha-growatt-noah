@@ -282,14 +282,14 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
         key="profit_today",
         name="Profit Today",
         device_class=SensorDeviceClass.MONETARY,
-        state_class=SensorStateClass.TOTAL_INCREASING,
+        state_class=SensorStateClass.TOTAL,
         icon="mdi:cash-plus",
     ),
     SensorEntityDescription(
         key="profit_total",
         name="Profit Total",
         device_class=SensorDeviceClass.MONETARY,
-        state_class=SensorStateClass.TOTAL_INCREASING,
+        state_class=SensorStateClass.TOTAL,
         icon="mdi:cash-multiple",
     ),
     SensorEntityDescription(
@@ -358,7 +358,6 @@ class NoahSensor(CoordinatorEntity[NoahDataUpdateCoordinator], SensorEntity):
         
         self.entity_description = description
         self._attr_unique_id = f"noah2000_{description.key}"
-        self._attr_object_id = f"noah2000_{description.key}"
         device_type = entry.data.get("device_type", "noah_2000")
         device_name = "Growatt Noah 2000"
         device_model = "Noah 2000"
