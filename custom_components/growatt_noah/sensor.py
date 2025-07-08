@@ -429,7 +429,33 @@ class NoahSensor(CoordinatorEntity[NoahDataUpdateCoordinator], SensorEntity):
                 "load_energy_total": data.load.energy_total,
             })
         
-        return key_mapping.get(self.entity_description.key)
+        # Additional Noah-specific sensor mappings from SystemData
+        if hasattr(data, 'system'):
+            additional_mappings = {
+                "charge_power": data.system.charge_power,
+                "discharge_power": data.system.discharge_power,
+                "work_mode": data.system.work_mode,
+                "battery_count": data.system.battery_count,
+                "profit_today": data.system.profit_today,
+                "profit_total": data.system.profit_total,
+                "groplug_power": data.system.groplug_power,
+                "other_power": data.system.other_power,
+            }
+            key_mapping.update(additional_mappings)
+        
+        # Debug logging to see what's happening
+        _LOGGER.debug("Sensor %s: Looking for key '%s' in data", 
+                     self.entity_description.name, self.entity_description.key)
+        _LOGGER.debug("Available keys: %s", list(key_mapping.keys()))
+        
+        value = key_mapping.get(self.entity_description.key)
+        if value is None:
+            _LOGGER.warning("Sensor %s: No value found for key '%s'", 
+                           self.entity_description.name, self.entity_description.key)
+        else:
+            _LOGGER.debug("Sensor %s: Value = %s", self.entity_description.name, value)
+            
+        return value
     
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

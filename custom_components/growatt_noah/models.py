@@ -78,6 +78,15 @@ class SystemData:
     derating_mode: Optional[str] = None  # Derating mode status
     fault_codes: Optional[list[str]] = None  # Fault codes
     warning_codes: Optional[list[str]] = None  # Warning codes
+    # Noah specific fields
+    charge_power: Optional[float] = None  # Battery charge power (W)
+    discharge_power: Optional[float] = None  # Battery discharge power (W)
+    work_mode: Optional[int] = None  # Work mode number
+    battery_count: Optional[int] = None  # Number of batteries
+    profit_today: Optional[float] = None  # Today's profit
+    profit_total: Optional[float] = None  # Total profit
+    groplug_power: Optional[float] = None  # External device power
+    other_power: Optional[float] = None  # Other connected device power
 
 
 @dataclass
@@ -155,6 +164,15 @@ class NoahData:
             derating_mode=data.get("derating_mode"),
             fault_codes=data.get("fault_codes"),
             warning_codes=data.get("warning_codes"),
+            # Noah specific fields
+            charge_power=data.get("charge_power"),
+            discharge_power=data.get("discharge_power"),
+            work_mode=data.get("work_mode"),
+            battery_count=data.get("battery_count"),
+            profit_today=data.get("profit_today"),
+            profit_total=data.get("profit_total"),
+            groplug_power=data.get("groplug_power"),
+            other_power=data.get("other_power"),
         )
         
         return cls(

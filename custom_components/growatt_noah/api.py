@@ -76,7 +76,14 @@ class GrowattNoahAPI:
             
             # Convert Noah API response to structured data
             battery_data = self._convert_noah_response(noah_status)
-            return NoahData.from_api_response(battery_data)
+            _LOGGER.debug("Converted battery data keys: %s", list(battery_data.keys()) if battery_data else "None")
+            
+            # Create NoahData object
+            noah_data_obj = NoahData.from_api_response(battery_data)
+            _LOGGER.debug("NoahData created - SOC: %s, Solar: %s, Status: %s", 
+                         noah_data_obj.battery.soc, noah_data_obj.solar.power, noah_data_obj.system.status)
+            
+            return noah_data_obj
             
         except Exception as e:
             _LOGGER.error("Failed to get Noah data: %s", e)
