@@ -53,7 +53,6 @@ STEP_API_DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_USERNAME): str,
         vol.Required(CONF_PASSWORD): str,
         vol.Optional("device_id", description="Device serial number (leave empty for auto-detection)"): str,
-        vol.Optional("server_url", default="https://openapi.growatt.com/"): str,
         vol.Optional("scan_interval", default=DEFAULT_SCAN_INTERVAL): vol.Coerce(int),
     }
 )
@@ -102,7 +101,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
         mqtt_broker=data.get("mqtt_broker"),
         mqtt_topic=data.get("mqtt_topic", "noah"),
         device_id=data.get("device_id"),
-        server_url=data.get("server_url", "https://openapi.growatt.com/"),
+        # Don't pass server_url - let growattServer use defaults
     )
     
     try:

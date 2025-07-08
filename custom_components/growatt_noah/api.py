@@ -49,7 +49,7 @@ class GrowattNoahAPI:
         mqtt_topic: str = "noah",
         device_id: Optional[str] = None,
         timeout: int = DEFAULT_TIMEOUT,
-        server_url: str = "https://openapi.growatt.com/",
+        server_url: str = None,
     ) -> None:
         """Initialize the API client."""
         self.connection_type = connection_type
@@ -62,7 +62,8 @@ class GrowattNoahAPI:
         self.mqtt_topic = mqtt_topic
         self.device_id = device_id
         self.timeout = timeout
-        self.server_url = server_url
+        # Don't store server_url - let growattServer use its defaults
+        # self.server_url = server_url
         
         self._session: Optional[aiohttp.ClientSession] = None
         self._mqtt_client: Optional[MQTTClient] = None
@@ -73,21 +74,30 @@ class GrowattNoahAPI:
         self._login_response: dict[str, Any] = {}
         self._plant_list: list[dict[str, Any]] = []
         self._device_list: list[dict[str, Any]] = []
+        self._growatt_api: Optional[Any] = None  # Store growattServer API instance
     
     async def async_test_connection(self) -> bool:
         """Test the connection to the device."""
+        _LOGGER.info("Starting connection test: type=%s, username=%s, device_id=%s", 
+                    self.connection_type, self.username, self.device_id)
         try:
             if self.connection_type == CONNECTION_TYPE_API:
-                return await self._test_api_connection()
+                result = await self._test_api_connection()
+                _LOGGER.info("API connection test result: %s", result)
+                return result
             elif self.connection_type == CONNECTION_TYPE_MQTT:
-                return await self._test_mqtt_connection()
+                result = await self._test_mqtt_connection()
+                _LOGGER.info("MQTT connection test result: %s", result)
+                return result
             elif self.connection_type in [CONNECTION_TYPE_MODBUS_TCP, CONNECTION_TYPE_MODBUS_RTU]:
-                return await self._test_modbus_connection()
+                result = await self._test_modbus_connection()
+                _LOGGER.info("Modbus connection test result: %s", result)
+                return result
             else:
                 _LOGGER.error("Unknown connection type: %s", self.connection_type)
                 return False
         except Exception as err:
-            _LOGGER.error("Connection test failed: %s", err)
+            _LOGGER.exception("Connection test failed with exception: %s", err)
             return False
     
     async def async_get_data(self) -> NoahData | Neo800Data:
@@ -115,17 +125,51 @@ class GrowattNoahAPI:
                     self._modbus_client.close()
             except Exception:
                 pass  # Ignore close errors
+        if self._growatt_api:
+            # Clean up growattServer API instance
+            self._growatt_api = None
     
     # API methods
     async def _test_api_connection(self) -> bool:
         """Test Growatt API connection."""
+        _LOGGER.info("Testing API connection with username=%s", self.username)
+        
         if not self.username or not self.password:
+            _LOGGER.error("Missing username or password for API connection")
+            return False
+        
+        # Test dependencies first
+        try:
+            import aiohttp
+            _LOGGER.info("aiohttp dependency available: %s", aiohttp.__version__)
+        except ImportError as err:
+            _LOGGER.error("aiohttp dependency missing: %s", err)
             return False
         
         try:
+            from growattServer import GrowattApi
+            _LOGGER.info("growattServer dependency available")
+        except ImportError as err:
+            _LOGGER.warning("growattServer dependency missing: %s - will use aiohttp fallback", err)
+        
+        try:
+            _LOGGER.info("Attempting authentication...")
             await self._authenticate_api()
-            return self._auth_token is not None
-        except Exception:
+            
+            if self._auth_token:
+                _LOGGER.info("Authentication successful, auth_token=%s", self._auth_token)
+                return True
+            else:
+                _LOGGER.error("Authentication failed - no auth token received")
+                return False
+                
+        except ImportError as err:
+            _LOGGER.error("Missing dependency for API connection: %s", err)
+            return False
+        except Exception as err:
+            _LOGGER.exception("API connection test failed with exception: %s", err)
+            import traceback
+            _LOGGER.error("Full traceback: %s", traceback.format_exc())
             return False
     
     def _hash_password(self, password: str) -> str:
@@ -138,47 +182,43 @@ class GrowattNoahAPI:
     
     async def _authenticate_api(self) -> None:
         """Authenticate with Growatt API using official growattServer method."""
-        if not self._session:
-            # Create session with official user agent
-            headers = {
-                "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 12; ha-noah)",
-                "Accept": "application/json, text/plain, */*",
-                "Content-Type": "application/x-www-form-urlencoded",
-            }
-            connector = aiohttp.TCPConnector(limit=10, limit_per_host=5)
-            self._session = aiohttp.ClientSession(
-                timeout=aiohttp.ClientTimeout(total=self.timeout),
-                headers=headers,
-                connector=connector
-            )
+        _LOGGER.info("Starting authentication with username=%s", self.username)
         
-        # Hash password using Growatt's method
-        hashed_password = self._hash_password(self.password)
-        
-        login_data = {
-            "userName": self.username,
-            "password": hashed_password,
-        }
-        
-        async with self._session.post(
-            f"{self.server_url}newTwoLoginAPI.do",
-            data=login_data,
-        ) as response:
-            if response.status == 200:
-                result = await response.json()
-                # Official API response structure
-                login_result = result.get("back", {})
-                if login_result.get("success"):
-                    self._auth_token = login_result.get("user", {}).get("id")
-                    self._user_data = login_result.get("user", {})
-                    self._login_response = login_result
-                    _LOGGER.info("Successfully authenticated with Growatt API")
-                else:
-                    error_msg = login_result.get("msg", "Unknown error")
-                    raise Exception(f"Login failed: {error_msg}")
+        # Use growattServer library exclusively - this is what the official integration uses
+        try:
+            from growattServer import GrowattApi
+            _LOGGER.info("Using growattServer library for authentication")
+            
+            # Create API instance with the same parameters as official integration
+            api = GrowattApi(add_random_user_id=True, agent_identifier="ha-noah-integration")
+            
+            # Don't override server_url - let growattServer use its default
+            # This is key difference from your original code
+            
+            # Synchronous login call from growattServer (this is blocking but fast)
+            login_response = api.login(self.username, self.password)
+            _LOGGER.info("growattServer login response keys: %s", list(login_response.keys()) if login_response else "None")
+            
+            if login_response and login_response.get('success'):
+                self._auth_token = login_response['user']['id']
+                self._user_data = login_response.get('user', {})
+                self._login_response = login_response
+                # Store the growattServer API instance for later use
+                self._growatt_api = api
+                _LOGGER.info("Successfully authenticated with growattServer, user_id=%s", self._auth_token)
+                return
             else:
-                text = await response.text()
-                raise Exception(f"HTTP {response.status}: {text}")
+                error_msg = login_response.get('msg', 'Unknown error') if login_response else 'No response'
+                _LOGGER.error("growattServer login failed: %s", error_msg)
+                raise Exception(f"Login failed: {error_msg}")
+                
+        except ImportError:
+            _LOGGER.error("growattServer library not available - this is required for authentication")
+            raise Exception("growattServer library is required but not available")
+            
+        except Exception as e:
+            _LOGGER.error("growattServer authentication failed: %s", e)
+            raise Exception(f"Authentication failed: {e}")
     
     async def _get_api_data(self) -> NoahData | Neo800Data:
         """Get data from Growatt API using advanced methods."""
@@ -479,92 +519,100 @@ class GrowattNoahAPI:
         if not self._auth_token:
             await self._authenticate_api()
         
-        if not self._session:
+        if not self._growatt_api:
             await self._authenticate_api()
         
-        async with self._session.get(
-            f"{self.server_url}PlantListAPI.do",
-            params={"userId": self._auth_token},
-            allow_redirects=False
-        ) as response:
-            if response.status == 200:
-                result = await response.json()
-                self._plant_list = result.get("back", [])
-                return self._plant_list
+        try:
+            # Use growattServer library method directly
+            plants_response = self._growatt_api.plant_list(self._auth_token)
+            _LOGGER.info("Plant list response type: %s", type(plants_response))
+            
+            # Handle different response formats from growattServer
+            if isinstance(plants_response, dict):
+                plants = plants_response.get('data', [])
+            elif isinstance(plants_response, list):
+                plants = plants_response
             else:
-                raise Exception(f"Failed to get plant list: HTTP {response.status}")
+                _LOGGER.error("Unexpected plant list response format: %s", plants_response)
+                plants = []
+            
+            self._plant_list = plants
+            return self._plant_list
+            
+        except Exception as e:
+            _LOGGER.error("Failed to get plant list: %s", e)
+            raise Exception(f"Failed to get plant list: {e}")
     
     async def get_device_list(self, plant_id: str) -> list[dict[str, Any]]:
         """Get list of devices for a plant."""
-        if not self._session:
+        if not self._growatt_api:
             await self._authenticate_api()
         
-        async with self._session.get(
-            f"{self.server_url}newTwoPlantAPI.do",
-            params={
-                "op": "getAllDeviceListTwo",
-                "plantId": plant_id,
-                "pageNum": 1,
-                "pageSize": 1
-            }
-        ) as response:
-            if response.status == 200:
-                result = await response.json()
-                device_list = result.get("deviceList", [])
-                self._device_list = device_list
-                return device_list
+        try:
+            # Use growattServer library method directly
+            device_response = self._growatt_api.device_list(plant_id)
+            _LOGGER.info("Device list response type: %s", type(device_response))
+            
+            # Handle different response formats from growattServer
+            if isinstance(device_response, dict):
+                device_list = device_response.get('deviceList', [])
+            elif isinstance(device_response, list):
+                device_list = device_response
             else:
-                raise Exception(f"Failed to get device list: HTTP {response.status}")
+                _LOGGER.error("Unexpected device list response format: %s", device_response)
+                device_list = []
+            
+            self._device_list = device_list
+            return device_list
+            
+        except Exception as e:
+            _LOGGER.error("Failed to get device list: %s", e)
+            raise Exception(f"Failed to get device list: {e}")
     
     async def is_plant_noah_system(self, plant_id: str) -> dict[str, Any]:
         """Check if plant is a Noah system."""
-        if not self._session:
+        if not self._growatt_api:
             await self._authenticate_api()
         
-        async with self._session.post(
-            f"{self.server_url}noahDeviceApi/noah/isPlantNoahSystem",
-            data={"plantId": plant_id}
-        ) as response:
-            if response.status == 200:
-                return await response.json()
-            else:
-                raise Exception(f"Failed to check Noah system: HTTP {response.status}")
+        try:
+            # Use growattServer library method directly
+            noah_response = self._growatt_api.is_plant_noah_system(plant_id)
+            _LOGGER.info("Noah system check response: %s", noah_response)
+            return noah_response
+            
+        except Exception as e:
+            _LOGGER.error("Failed to check Noah system: %s", e)
+            raise Exception(f"Failed to check Noah system: {e}")
     
     async def noah_system_status(self, serial_number: str) -> dict[str, Any]:
         """Get Noah system status with comprehensive battery information."""
-        if not self._session:
+        if not self._growatt_api:
             await self._authenticate_api()
         
-        async with self._session.post(
-            f"{self.server_url}noahDeviceApi/noah/getSystemStatus",
-            data={"deviceSn": serial_number}
-        ) as response:
-            if response.status == 200:
-                result = await response.json()
-                if result.get("result"):
-                    return result.get("obj", {})
-                else:
-                    raise Exception(f"Noah status error: {result.get('msg', 'Unknown error')}")
-            else:
-                raise Exception(f"Failed to get Noah status: HTTP {response.status}")
+        try:
+            # Use growattServer library method directly
+            noah_status = self._growatt_api.noah_system_status(serial_number)
+            _LOGGER.info("Noah system status response: %s", noah_status)
+            return noah_status
+            
+        except Exception as e:
+            _LOGGER.error("Failed to get Noah system status: %s", e)
+            raise Exception(f"Failed to get Noah system status: {e}")
     
     async def noah_info(self, serial_number: str) -> dict[str, Any]:
         """Get detailed Noah device information and configuration."""
-        if not self._session:
+        if not self._growatt_api:
             await self._authenticate_api()
         
-        async with self._session.post(
-            f"{self.server_url}noahDeviceApi/noah/getNoahInfoBySn",
-            data={"deviceSn": serial_number}
-        ) as response:
-            if response.status == 200:
-                result = await response.json()
-                if result.get("result"):
-                    return result.get("obj", {})
-                else:
-                    raise Exception(f"Noah info error: {result.get('msg', 'Unknown error')}")
-            else:
-                raise Exception(f"Failed to get Noah info: HTTP {response.status}")
+        try:
+            # Use growattServer library method directly
+            noah_info = self._growatt_api.noah_info(serial_number)
+            _LOGGER.info("Noah info response: %s", noah_info)
+            return noah_info
+            
+        except Exception as e:
+            _LOGGER.error("Failed to get Noah info: %s", e)
+            raise Exception(f"Failed to get Noah info: {e}")
     
     async def storage_detail(self, storage_id: str) -> dict[str, Any]:
         """Get detailed storage/battery parameters."""
@@ -624,89 +672,60 @@ class GrowattNoahAPI:
             raise ValueError("This method is only for Noah 2000 devices")
         
         try:
-            # Step 1: Get plant list
-            plants = await self.get_plant_list()
-            if not plants:
-                raise Exception("No plants found")
-            
-            # Use first plant or find by device_id
-            target_plant = plants[0]
-            if self.device_id:
-                for plant in plants:
-                    if (plant.get("id") == self.device_id or 
-                        plant.get("plantId") == self.device_id or
-                        plant.get("plantName") == self.device_id):
-                        target_plant = plant
-                        break
-            
-            plant_id = target_plant.get("id") or target_plant.get("plantId")
-            
-            # Step 2: Check if it's a Noah system
-            noah_check = await self.is_plant_noah_system(str(plant_id))
-            noah_obj = noah_check.get("obj", {})
-            
-            if not noah_obj.get("isPlantNoahSystem") and not noah_obj.get("isPlantHaveNoah"):
-                _LOGGER.warning("Plant %s doesn't appear to be a Noah system", plant_id)
-            
-            # Step 3: Get device list
-            devices = await self.get_device_list(str(plant_id))
-            
-            # Step 4: Find Noah device
-            noah_device = None
-            storage_device = None
-            
-            for device in devices:
-                device_type = str(device.get("deviceType", "")).lower()
-                device_sn = device.get("deviceSn") or device.get("serialNum")
+            # Prefer growattServer API if available
+            if self._growatt_api and self._auth_token:
+                _LOGGER.info("Using growattServer API for comprehensive data")
                 
-                if ("noah" in device_type or "storage" in device_type or 
-                    device_sn == noah_obj.get("deviceSn")):
-                    if "noah" in device_type:
-                        noah_device = device
-                    elif "storage" in device_type:
-                        storage_device = device
+                # Get plant list using growattServer
+                plants_response = self._growatt_api.plant_list(self._auth_token)
+                plants = plants_response.get('data', []) if isinstance(plants_response, dict) else plants_response
+                
+                if not plants:
+                    raise Exception("No plants found")
+                
+                # Use first plant or find by device_id
+                target_plant = plants[0]
+                if self.device_id:
+                    for plant in plants:
+                        if (plant.get("id") == self.device_id or 
+                            plant.get("plantId") == self.device_id or
+                            plant.get("plantName") == self.device_id):
+                            target_plant = plant
+                            break
+                
+                plant_id = target_plant.get("id") or target_plant.get("plantId")
+                
+                # Check if it's a Noah system using growattServer
+                noah_check = self._growatt_api.is_plant_noah_system(str(plant_id))
+                noah_obj = noah_check.get("obj", {})
+                
+                if not noah_obj.get("isPlantNoahSystem") and not noah_obj.get("isPlantHaveNoah"):
+                    _LOGGER.warning("Plant %s doesn't appear to be a Noah system", plant_id)
+                
+                # Get Noah device status directly
+                device_sn = self.device_id or noah_obj.get("deviceSn")
+                if not device_sn:
+                    raise Exception("No device serial number available")
+                
+                # Get comprehensive data using growattServer
+                noah_status = self._growatt_api.noah_system_status(device_sn)
+                noah_info = self._growatt_api.noah_info(device_sn)
+                
+                return {
+                    "plant": target_plant,
+                    "noah_check": noah_obj,
+                    "devices": [],  # Not needed when using growattServer directly
+                    "noah_status": noah_status,
+                    "noah_info": noah_info,
+                    "storage_data": {},  # Will add if needed
+                    "device_sn": device_sn,
+                    "plant_id": plant_id
+                }
             
-            # Use the Noah device SN from the check if we have it
-            if noah_obj.get("deviceSn"):
-                device_sn = noah_obj.get("deviceSn")
-            elif noah_device:
-                device_sn = noah_device.get("deviceSn") or noah_device.get("serialNum")
-            elif storage_device:
-                device_sn = storage_device.get("deviceSn") or storage_device.get("serialNum")
-            else:
-                raise Exception("No Noah or storage device found in plant")
-            
-            # Step 5: Get comprehensive data
-            noah_status = await self.noah_system_status(device_sn)
-            noah_info = await self.noah_info(device_sn)
-            
-            # Try to get storage data if we have a storage device
-            storage_data = {}
-            if storage_device:
-                storage_sn = storage_device.get("deviceSn") or storage_device.get("serialNum")
-                try:
-                    storage_detail = await self.storage_detail(storage_sn)
-                    storage_params = await self.storage_params(storage_sn)
-                    storage_overview = await self.storage_energy_overview(str(plant_id), storage_sn)
-                    
-                    storage_data = {
-                        "detail": storage_detail,
-                        "params": storage_params,
-                        "overview": storage_overview
-                    }
-                except Exception as e:
-                    _LOGGER.warning("Failed to get storage data: %s", e)
-            
-            return {
-                "plant": target_plant,
-                "noah_check": noah_obj,
-                "devices": devices,
-                "noah_status": noah_status,
-                "noah_info": noah_info,
-                "storage_data": storage_data,
-                "device_sn": device_sn,
-                "plant_id": plant_id
-            }
+            # If growattServer is not available, we cannot proceed reliably
+            # The async methods below depend on aiohttp which is not as reliable
+            # for authentication as the growattServer library
+            raise Exception("growattServer library is required for reliable Noah 2000 authentication")
             
         except Exception as e:
             _LOGGER.error("Failed to get comprehensive Noah data: %s", e)
