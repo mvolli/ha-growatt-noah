@@ -52,7 +52,8 @@ STEP_API_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_USERNAME): str,
         vol.Required(CONF_PASSWORD): str,
-        vol.Optional("device_id", description="Plant ID or name (leave empty for first plant)"): str,
+        vol.Optional("device_id", description="Device serial number (leave empty for auto-detection)"): str,
+        vol.Optional("server_url", default="https://openapi.growatt.com/"): str,
         vol.Optional("scan_interval", default=DEFAULT_SCAN_INTERVAL): vol.Coerce(int),
     }
 )
@@ -101,19 +102,32 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
         mqtt_broker=data.get("mqtt_broker"),
         mqtt_topic=data.get("mqtt_topic", "noah"),
         device_id=data.get("device_id"),
+        server_url=data.get("server_url", "https://openapi.growatt.com/"),
     )
     
     try:
+        _LOGGER.info("Testing connection with config: connection_type=%s, device_type=%s, username=%s, device_id=%s", 
+                    data["connection_type"], data.get("device_type"), data.get(CONF_USERNAME), data.get("device_id"))
+        
         # Test the connection
-        if not await api_client.async_test_connection():
-            raise CannotConnect("Connection test failed")
+        connection_result = await api_client.async_test_connection()
+        _LOGGER.info("Connection test result: %s", connection_result)
+        
+        if not connection_result:
+            _LOGGER.error("Connection test returned False - authentication or network issue")
+            raise CannotConnect("Connection test failed - check credentials and network")
         
         # If we get here, connection is successful
         device_name = "Neo 800" if data.get("device_type") == DEVICE_TYPE_NEO800 else "Noah 2000"
+        _LOGGER.info("Connection successful for %s", device_name)
         return {"title": f"Growatt {device_name} ({data['connection_type'].upper()})"}
     
-    except CannotConnect:
+    except CannotConnect as err:
+        _LOGGER.error("Connection failed: %s", err)
         raise
+    except ImportError as err:
+        _LOGGER.error("Missing dependency: %s", err)
+        raise CannotConnect(f"Missing dependency: {str(err)} - try restarting Home Assistant")
     except Exception as err:
         _LOGGER.exception("Unexpected error during connection test: %s", err)
         raise CannotConnect(f"Connection test failed: {str(err)}")
