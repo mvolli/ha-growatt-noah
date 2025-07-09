@@ -11,7 +11,7 @@ template:
         unit_of_measurement: "kWh"
         icon: "mdi:battery-plus"
         state: >
-          {% set charge_power = states('sensor.noah2000_battery_charge_power_2') | float(0) %}
+          {% set charge_power = states('sensor.noah2000_battery_charge_power') | float(0) %}
           {% if charge_power > 0 %}
             {% set last_update = state_attr('sensor.noah2000_battery_energy_charged_today', 'last_reset') %}
             {% set today = now().date() | string %}
@@ -19,7 +19,7 @@ template:
               0
             {% else %}
               {% set current = states('sensor.noah2000_battery_energy_charged_today') | float(0) %}
-              {% set time_diff = (now() - states.sensor.noah2000_battery_charge_power_2.last_changed).total_seconds() / 3600 %}
+              {% set time_diff = (now() - states.sensor.noah2000_battery_charge_power.last_changed).total_seconds() / 3600 %}
               {{ (current + (charge_power * time_diff / 1000)) | round(3) }}
             {% endif %}
           {% else %}
@@ -36,7 +36,7 @@ template:
         unit_of_measurement: "kWh"
         icon: "mdi:battery-minus"
         state: >
-          {% set discharge_power = states('sensor.noah2000_battery_discharge_power_2') | float(0) %}
+          {% set discharge_power = states('sensor.noah2000_battery_discharge_power') | float(0) %}
           {% if discharge_power > 0 %}
             {% set last_update = state_attr('sensor.noah2000_battery_energy_discharged_today', 'last_reset') %}
             {% set today = now().date() | string %}
@@ -44,7 +44,7 @@ template:
               0
             {% else %}
               {% set current = states('sensor.noah2000_battery_energy_discharged_today') | float(0) %}
-              {% set time_diff = (now() - states.sensor.noah2000_battery_discharge_power_2.last_changed).total_seconds() / 3600 %}
+              {% set time_diff = (now() - states.sensor.noah2000_battery_discharge_power.last_changed).total_seconds() / 3600 %}
               {{ (current + (discharge_power * time_diff / 1000)) | round(3) }}
             {% endif %}
           {% else %}
@@ -59,7 +59,7 @@ template:
 sensor:
   # Battery Energy Charged Today - using integration helper
   - platform: integration
-    source: sensor.noah2000_battery_charge_power_2
+    source: sensor.noah2000_battery_charge_power
     name: "Noah2000 Battery Energy Charged Today"
     unique_id: "noah2000_battery_energy_charged_today"
     unit_prefix: k
@@ -68,7 +68,7 @@ sensor:
     
   # Battery Energy Discharged Today - using integration helper  
   - platform: integration
-    source: sensor.noah2000_battery_discharge_power_2
+    source: sensor.noah2000_battery_discharge_power
     name: "Noah2000 Battery Energy Discharged Today"
     unique_id: "noah2000_battery_energy_discharged_today"
     unit_prefix: k
