@@ -76,7 +76,7 @@ Install and configure the Noah 2000 integration as described above.
 sensor:
   # Battery Energy Charged Today
   - platform: integration
-    source: sensor.noah2000_battery_charge_power
+    source: sensor.battery_charge_power
     name: "Noah2000 Battery Energy Charged Today"
     unique_id: "noah2000_battery_energy_charged_today"
     unit_prefix: k
@@ -85,7 +85,7 @@ sensor:
     
   # Battery Energy Discharged Today
   - platform: integration
-    source: sensor.noah2000_battery_discharge_power
+    source: sensor.battery_discharge_power
     name: "Noah2000 Battery Energy Discharged Today"
     unique_id: "noah2000_battery_energy_discharged_today"
     unit_prefix: k
@@ -115,32 +115,32 @@ utility_meter:
 
 ## Available Sensors
 
-All sensors use the naming format: `sensor.noah2000_{sensor_name}`
+All sensors use the naming format: `sensor.{sensor_name}`
 
 ### Battery Sensors
-- `sensor.noah2000_battery_soc` - State of Charge (%)
-- `sensor.noah2000_battery_power` - Net Battery Power (W)
-- `sensor.noah2000_battery_charge_power` - Charging Power (W)
-- `sensor.noah2000_battery_discharge_power` - Discharging Power (W)
-- `sensor.noah2000_battery_voltage` - Battery Voltage (V)
-- `sensor.noah2000_battery_current` - Battery Current (A)
-- `sensor.noah2000_battery_temperature` - Temperature (°C)
-- `sensor.noah2000_battery_status` - Status (Charging/Discharging/Idle)
+- `sensor.battery_soc` - State of Charge (%)
+- `sensor.battery_power` - Net Battery Power (W)
+- `sensor.battery_charge_power` - Charging Power (W)
+- `sensor.battery_discharge_power` - Discharging Power (W)
+- `sensor.battery_voltage` - Battery Voltage (V)
+- `sensor.battery_current` - Battery Current (A)
+- `sensor.battery_temperature` - Temperature (°C)
+- `sensor.battery_status` - Status (Charging/Discharging/Idle)
 
 ### Solar Sensors
-- `sensor.noah2000_solar_power` - Solar Power (W)
-- `sensor.noah2000_solar_energy_today` - Solar Energy Today (kWh)
-- `sensor.noah2000_solar_energy_total` - Total Solar Energy (kWh)
+- `sensor.solar_power` - Solar Power (W)
+- `sensor.solar_energy_today` - Solar Energy Today (kWh)
+- `sensor.solar_energy_total` - Total Solar Energy (kWh)
 
 ### Grid Sensors
-- `sensor.noah2000_grid_power` - Grid Power (W)
-- `sensor.noah2000_grid_energy_exported_today` - Grid Export Today (kWh)
-- `sensor.noah2000_grid_energy_exported_total` - Total Grid Export (kWh)
+- `sensor.grid_power` - Grid Power (W)
+- `sensor.grid_energy_exported_today` - Grid Export Today (kWh)
+- `sensor.grid_energy_exported_total` - Total Grid Export (kWh)
 
 ### System Sensors
-- `sensor.noah2000_system_status` - System Status
-- `sensor.noah2000_system_mode` - Work Mode
-- `sensor.noah2000_load_power` - Load Power (W)
+- `sensor.system_status` - System Status
+- `sensor.system_mode` - Work Mode
+- `sensor.load_power` - Load Power (W)
 
 ## Performance Optimization
 
@@ -174,12 +174,12 @@ This integration is optimized for Raspberry Pi deployment:
 - **Solution**: Update your automation to use correct entity ID:
   ```yaml
   # Wrong:
-  "{{ states('sensor.solar_power') | round(0) }}W"
+  "{{ states('sensor.unknown_solar_power') | round(0) }}W"
   
   # Correct:
-  "{{ states('sensor.noah2000_solar_power') | round(0, default=0) }}W"
+  "{{ states('sensor.solar_power') | round(0, default=0) }}W"
   ```
-- **Note**: All Noah 2000 sensors use the prefix `sensor.noah2000_`
+- **Note**: All Noah 2000 sensors use the format `sensor.{sensor_name}`
 
 ### Missing Energy Sensors
 - **Issue**: Battery energy sensors not appearing

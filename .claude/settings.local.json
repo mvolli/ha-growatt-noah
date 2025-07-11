@@ -10,7 +10,8 @@
       "WebFetch(domain:www.home-assistant.io)",
       "Bash(mkdir:*)",
       "WebFetch(domain:www.home-assistant.io)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(find:*)"
     ],
     "deny": []
   }
