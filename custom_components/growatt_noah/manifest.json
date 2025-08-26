@@ -5,9 +5,9 @@
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/mvolli/ha-growatt-noah",
-  "issue_tracker": "https://github.com/mvolli/ha-growatt-noah/issues",
   "integration_type": "device",
   "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/mvolli/ha-growatt-noah/issues",
   "loggers": ["custom_components.growatt_noah", "custom_components.growatt_noah.api"],
   "requirements": [
     "aiohttp>=3.8.0"
