@@ -62,7 +62,7 @@ A comprehensive Home Assistant integration for monitoring Growatt Noah 2000 batt
 - **Requirements**: Growatt account credentials and device serial number
 - **Benefits**: Real-time data directly from Growatt Cloud
 - **Configuration**: Username, password, device serial number
-- **Data Update**: Every 30 seconds with real Noah data
+- **Data Update**: Every 5 minutes (reduced from 30 seconds to prevent API lockouts)
 
 ## Energy Dashboard Setup
 
