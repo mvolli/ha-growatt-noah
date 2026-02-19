@@ -27,7 +27,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_USERNAME): str,
         vol.Required(CONF_PASSWORD): str,
         vol.Optional("device_id", description="Device serial number (leave empty for auto-detection)"): str,
-        vol.Optional("scan_interval", default=DEFAULT_SCAN_INTERVAL): vol.Coerce(int),
+        vol.Optional("scan_interval", default=DEFAULT_SCAN_INTERVAL): vol.All(vol.Coerce(int), vol.Range(min=300)),
     }
 )
 

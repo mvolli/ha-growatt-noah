@@ -4,7 +4,7 @@ from typing import Final
 DOMAIN: Final = "growatt_noah"
 
 # Default configuration
-DEFAULT_SCAN_INTERVAL: Final = 300  # seconds (5 minutes - reduced from 30s to prevent API lockouts)
+DEFAULT_SCAN_INTERVAL: Final = 900  # seconds (15 minutes - conservative to avoid API rate limits)
 DEFAULT_TIMEOUT: Final = 10  # seconds
 
 # Connection types - Only API is supported
