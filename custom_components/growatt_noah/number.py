@@ -107,13 +107,6 @@ class NoahNumber(CoordinatorEntity[NoahDataUpdateCoordinator], NumberEntity):
             "configuration_url": "https://server.growatt.com/",
         }
         
-        # Store default values (these would normally come from device)
-        self._default_values = {
-            "battery_charge_limit": 95,
-            "battery_discharge_limit": 20,
-            "max_charge_power": 2000,
-            "max_discharge_power": 2000,
-        }
     
     def _get_firmware_version(self) -> str | None:
         """Safely get firmware version from coordinator data."""
@@ -126,15 +119,18 @@ class NoahNumber(CoordinatorEntity[NoahDataUpdateCoordinator], NumberEntity):
     
     @property
     def native_value(self) -> float | None:
-        """Return the current value."""
+        """Return the current value from device configuration."""
         if not self.coordinator.data:
             return None
-        
-        # Note: These are placeholder implementations
-        # Actual values would come from device configuration/settings
-        # For now, return default values
-        
-        return self._default_values.get(self.entity_description.key)
+
+        val = self.coordinator.config.get(self.entity_description.key)
+        if val is None:
+            return None
+
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return None
     
     async def async_set_native_value(self, value: float) -> None:
         """Set the value."""
@@ -153,11 +149,8 @@ class NoahNumber(CoordinatorEntity[NoahDataUpdateCoordinator], NumberEntity):
             )
             
             if success:
-                # Update the local value
-                self._default_values[self.entity_description.key] = value
                 self.async_write_ha_state()
-                
-                # Request a refresh to get updated values
+                # Refresh coordinator so the new value is reflected immediately
                 await self.coordinator.async_request_refresh()
                 
                 _LOGGER.info("Successfully set %s to %s", self.entity_description.key, value)
@@ -185,7 +178,6 @@ class NoahNumber(CoordinatorEntity[NoahDataUpdateCoordinator], NumberEntity):
         
         attrs = {
             "last_update": self.coordinator.data.timestamp.isoformat(),
-            "note": "Control functionality not yet implemented",
         }
         
         # Add relevant current status

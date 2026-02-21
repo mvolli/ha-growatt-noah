@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 import hashlib
 
 import aiohttp
@@ -25,22 +26,25 @@ class GrowattNoahAPI:
         password: Optional[str] = None,
         device_id: Optional[str] = None,
         timeout: int = DEFAULT_TIMEOUT,
+        cached_token: Optional[str] = None,
+        on_token_saved: Optional[Callable[[str], None]] = None,
     ) -> None:
         """Initialize the API client."""
         if connection_type != CONNECTION_TYPE_API:
             raise ValueError(f"Only API connection supported, got: {connection_type}")
         if device_type != DEVICE_TYPE_NOAH:
             raise ValueError(f"Only Noah 2000 devices supported, got: {device_type}")
-            
+
         self.connection_type = connection_type
         self.device_type = device_type
         self.username = username
         self.password = password
         self.device_id = device_id
         self.timeout = timeout
-        
+
         self._session: Optional[aiohttp.ClientSession] = None
-        self._auth_token: Optional[str] = None
+        self._auth_token: Optional[str] = cached_token  # Pre-seed from cache
+        self._on_token_saved: Optional[Callable[[str], None]] = on_token_saved
         self._semaphore = asyncio.Semaphore(1)  # Limit concurrent requests
     
     async def async_test_connection(self) -> bool:
@@ -70,33 +74,97 @@ class GrowattNoahAPI:
         async with self._semaphore:
             if not self._auth_token:
                 await self._authenticate_api()
-            
-            try:
-                # Get real Noah data using direct API call
-                noah_status = await self._noah_system_status(self.device_id)
-                _LOGGER.debug("Noah status retrieved: %s keys", len(noah_status.keys()) if noah_status else 0)
-                
-                # Convert Noah API response to structured data
-                battery_data = self._convert_noah_response(noah_status)
-                _LOGGER.debug("Converted battery data keys: %s", list(battery_data.keys()) if battery_data else "None")
-                
-                # Create NoahData object
-                noah_data_obj = NoahData.from_api_response(battery_data)
-                _LOGGER.debug("NoahData created - SOC: %s, Solar: %s, Status: %s", 
-                             noah_data_obj.battery.soc, noah_data_obj.solar.power, noah_data_obj.system.status)
-                
-                return noah_data_obj
-                
-            except Exception as e:
-                _LOGGER.error("Failed to get Noah data: %s", e)
-                # Return empty data if API call fails
-                return NoahData.from_api_response({})
+
+            noah_status = await self._noah_system_status(self.device_id)
+            _LOGGER.debug("Noah status retrieved: %s keys", len(noah_status.keys()) if noah_status else 0)
+
+            battery_data = self._convert_noah_response(noah_status)
+            _LOGGER.debug("Converted battery data keys: %s", list(battery_data.keys()) if battery_data else "None")
+
+            noah_data_obj = NoahData.from_api_response(battery_data)
+            _LOGGER.debug(
+                "NoahData created - SOC: %s, Solar: %s, Status: %s",
+                noah_data_obj.battery.soc,
+                noah_data_obj.solar.power,
+                noah_data_obj.system.status,
+            )
+            return noah_data_obj
     
     async def async_close(self) -> None:
         """Close the API session."""
         if self._session:
             await self._session.close()
             self._session = None
+
+    async def async_get_config(self) -> dict[str, Any]:
+        """Fetch device configuration: charge limits, power limits, enable flags."""
+        if not self._auth_token:
+            await self._authenticate_api()
+
+        data = {
+            "deviceSn": self.device_id,
+            "userId": self._auth_token,
+        }
+
+        async with self._session.post(
+            "https://openapi.growatt.com/noahDeviceApi/noah/getNoahInfo",
+            data=data,
+        ) as response:
+            if response.status != 200:
+                raise Exception(f"getNoahInfo HTTP {response.status}")
+            response_text = await response.text()
+            try:
+                result = json.loads(response_text)
+            except json.JSONDecodeError as exc:
+                raise Exception(f"getNoahInfo JSON parse error: {exc}") from exc
+            if not result.get("result"):
+                raise Exception(f"getNoahInfo API error: {result.get('msg', 'Unknown')}")
+            config = self._parse_noah_config(result)
+            _LOGGER.debug("Device config fetched: %s", config)
+            return config
+
+    def _parse_noah_config(self, result: dict[str, Any]) -> dict[str, Any]:
+        """Extract config fields from getNoahInfo response, handling multiple structures."""
+        # The response may wrap the payload under different keys
+        obj = result.get("obj") or result.get("data") or result.get("noah") or result
+        if not isinstance(obj, dict):
+            return {}
+
+        config: dict[str, Any] = {}
+
+        # Battery SOC limits and power limits — may be nested or flat
+        bm = obj.get("batteryManagement", obj)
+
+        for src_key, cfg_key in [
+            ("chargingSocHighLimit",  "battery_charge_limit"),
+            ("chargingSocLowLimit",   "battery_discharge_limit"),
+            ("maxChargePower",        "max_charge_power"),
+            ("maxDischargePower",     "max_discharge_power"),
+        ]:
+            # Try nested dict first, then flat
+            val = bm.get(src_key) if isinstance(bm, dict) else None
+            if val is None:
+                val = obj.get(src_key)
+            if val is not None:
+                try:
+                    config[cfg_key] = float(val)
+                except (TypeError, ValueError):
+                    pass
+
+        # Enable / disable boolean flags (API sends 0/1 as int or string)
+        for src_key, cfg_key in [
+            ("chargeEnable",     "battery_charge_enable"),
+            ("dischargeEnable",  "battery_discharge_enable"),
+            ("gridExportEnable", "grid_export_enable"),
+        ]:
+            val = obj.get(src_key)
+            if val is not None:
+                try:
+                    config[cfg_key] = bool(int(val))
+                except (TypeError, ValueError):
+                    pass
+
+        return config
     
     def _hash_password(self, password: str) -> str:
         """Hash password using Growatt's MD5 algorithm."""
@@ -108,21 +176,26 @@ class GrowattNoahAPI:
     
     async def _authenticate_api(self) -> None:
         """Authenticate with Growatt API using aiohttp (like official HA integration)."""
-        # Use same method as official HA Growatt integration
+        # Always ensure we have an aiohttp session (required for ALL API calls).
+        # Session creation must happen before the cached-token early-return below.
         if not self._session:
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                 "Accept": "application/json, text/plain, */*",
                 "Content-Type": "application/x-www-form-urlencoded",
             }
-            # Enable cookie jar to maintain session cookies for Noah API
             cookie_jar = aiohttp.CookieJar()
             self._session = aiohttp.ClientSession(
                 timeout=aiohttp.ClientTimeout(total=self.timeout),
                 headers=headers,
-                cookie_jar=cookie_jar
+                cookie_jar=cookie_jar,
             )
-        
+
+        # If we already have a token (cached or from a previous login), skip re-auth.
+        # The token is cleared on session-expiry so this method will be called again.
+        if self._auth_token:
+            return
+
         # Hash password using Growatt's method
         hashed_password = self._hash_password(self.password)
         
@@ -141,6 +214,8 @@ class GrowattNoahAPI:
                 if login_result.get("success"):
                     self._auth_token = login_result.get("user", {}).get("id")
                     _LOGGER.debug("Authentication successful")
+                    if self._auth_token and self._on_token_saved:
+                        self._on_token_saved(self._auth_token)
                 else:
                     raise Exception(f"Login failed: {login_result.get('msg', 'Authentication failed')}")
             else:
@@ -160,33 +235,40 @@ class GrowattNoahAPI:
         
         async with self._session.post(
             "https://openapi.growatt.com/noahDeviceApi/noah/getSystemStatus",
-            data=data
+            data=data,
         ) as response:
-            if response.status == 200:
-                try:
-                    result = await response.json()
-                    if result.get("result"):
-                        noah_status = result.get("obj", {})
-                        _LOGGER.info("Noah system status response: %s", noah_status)
-                        _LOGGER.debug("Raw Noah power values - chargePower: %s, disChargePower: %s", 
-                                     noah_status.get("chargePower"), noah_status.get("disChargePower"))
-                        return noah_status
-                    else:
-                        raise Exception(f"Noah status error: {result.get('msg', 'Unknown error')}")
-                except Exception as e:
-                    # If JSON parsing fails, check if we got redirected to login
-                    response_text = await response.text()
-                    if "login" in response_text.lower() or "jsessionid" in response_text.lower():
-                        # Session expired, re-authenticate
-                        _LOGGER.warning("Session expired, re-authenticating...")
-                        self._auth_token = None
-                        await self._authenticate_api()
-                        # Retry the request
-                        return await self._noah_system_status(serial_number)
-                    else:
-                        raise Exception(f"Failed to parse Noah status response: {e}")
-            else:
+            if response.status != 200:
                 raise Exception(f"Failed to get Noah status: HTTP {response.status}")
+
+            # Read body once — aiohttp streams can only be consumed once
+            response_text = await response.text()
+
+            # Detect session expiry (server redirects to a login page)
+            if "login" in response_text.lower() or "jsessionid" in response_text.lower():
+                _LOGGER.warning("Session expired, re-authenticating...")
+                self._auth_token = None
+                await self._authenticate_api()
+                return await self._noah_system_status(serial_number)
+
+            try:
+                result = json.loads(response_text)
+            except json.JSONDecodeError as exc:
+                raise Exception(
+                    f"Failed to parse Noah status response: {exc}; "
+                    f"body: {response_text[:200]}"
+                ) from exc
+
+            if result.get("result"):
+                noah_status = result.get("obj", {})
+                _LOGGER.debug("Noah system status response: %s", noah_status)
+                _LOGGER.debug(
+                    "Raw Noah power values - chargePower: %s, disChargePower: %s",
+                    noah_status.get("chargePower"),
+                    noah_status.get("disChargePower"),
+                )
+                return noah_status
+            else:
+                raise Exception(f"Noah status error: {result.get('msg', 'Unknown error')}")
     
     async def async_set_noah_parameter(self, serial_number: str, parameter: str, value: Any) -> bool:
         """Set Noah configuration parameter."""
@@ -288,7 +370,7 @@ class GrowattNoahAPI:
             "battery_power": charge_power - discharge_power,  # Net battery power
             "battery_voltage": 0,  # Not available in Noah API
             "battery_current": 0,  # Not available in Noah API
-            "battery_temperature": 25,  # Default temperature
+            "battery_temperature": None,  # Not available in Noah API
             "battery_status": "Charging" if charge_power > 0 else ("Discharging" if discharge_power > 0 else "Idle"),
             
             # Solar fields
@@ -301,11 +383,11 @@ class GrowattNoahAPI:
             # Grid fields
             "grid_power": grid_power,
             "grid_voltage": 0,  # Not available in Noah API
-            "grid_frequency": 50,  # Default frequency
+            "grid_frequency": None,  # Not available in Noah API
             "grid_energy_imported_today": 0,  # Not available
-            "grid_energy_exported_today": float(noah_status.get("eacToday", 0)),
+            "grid_energy_exported_today": 0,  # Not available
             "grid_energy_imported_total": 0,  # Not available
-            "grid_energy_exported_total": float(noah_status.get("eacTotal", 0)),
+            "grid_energy_exported_total": 0,  # Not available
             "grid_connected": status == 1,
             
             # Load fields (calculated)

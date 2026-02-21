@@ -91,29 +91,19 @@ class NoahSwitch(CoordinatorEntity[NoahDataUpdateCoordinator], SwitchEntity):
     
     @property
     def is_on(self) -> bool | None:
-        """Return the state of the switch."""
+        """Return the state of the switch from device configuration."""
         if not self.coordinator.data:
             return None
-        
-        # Note: These are placeholder implementations
-        # Actual implementation would depend on the device's actual API/control capabilities
-        # For now, these switches will be read-only status indicators
-        
-        data = self.coordinator.data
-        
-        if self.entity_description.key == "battery_charge_enable":
-            # Could be determined by system mode or specific settings
-            return data.system.mode in ["Auto", "Charge"]
-        
-        elif self.entity_description.key == "battery_discharge_enable":
-            # Could be determined by system mode or specific settings
-            return data.system.mode in ["Auto", "Discharge"]
-        
-        elif self.entity_description.key == "grid_export_enable":
-            # Could be determined by grid power flow
-            return data.grid.power < 0  # Negative power = exporting
-        
-        return None
+
+        config = self.coordinator.config
+        if not config:
+            return None  # Config not yet fetched; avoid showing a wrong state
+
+        val = config.get(self.entity_description.key)
+        if val is None:
+            return None
+
+        return bool(val)
     
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
@@ -179,5 +169,4 @@ class NoahSwitch(CoordinatorEntity[NoahDataUpdateCoordinator], SwitchEntity):
         
         return {
             "last_update": self.coordinator.data.timestamp.isoformat(),
-            "note": "Control functionality not yet implemented",
         }

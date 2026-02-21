@@ -50,6 +50,7 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfElectricPotential.VOLT,
         icon="mdi:flash",
         entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,  # Not provided by Noah API
     ),
     SensorEntityDescription(
         key="battery_current",
@@ -59,6 +60,7 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
         icon="mdi:current-ac",
         entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,  # Not provided by Noah API
     ),
     SensorEntityDescription(
         key="battery_power",
@@ -76,6 +78,7 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         icon="mdi:thermometer",
         entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,  # Not provided by Noah API
     ),
     SensorEntityDescription(
         key="battery_status",
@@ -116,6 +119,7 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfElectricPotential.VOLT,
         icon="mdi:flash",
         entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,  # Not provided by Noah API
     ),
     SensorEntityDescription(
         key="solar_current",
@@ -125,6 +129,7 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
         icon="mdi:current-ac",
         entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,  # Not provided by Noah API
     ),
     SensorEntityDescription(
         key="solar_energy_today",
@@ -160,6 +165,7 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfElectricPotential.VOLT,
         icon="mdi:flash",
         entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,  # Not provided by Noah API
     ),
     SensorEntityDescription(
         key="grid_frequency",
@@ -169,6 +175,7 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfFrequency.HERTZ,
         icon="mdi:sine-wave",
         entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,  # Not provided by Noah API
     ),
     SensorEntityDescription(
         key="grid_energy_imported_today",
@@ -177,6 +184,7 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
         state_class=SensorStateClass.TOTAL_INCREASING,
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         icon="mdi:transmission-tower-import",
+        entity_registry_enabled_default=False,  # Not provided by Noah API
     ),
     SensorEntityDescription(
         key="grid_energy_exported_today",
@@ -185,6 +193,7 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
         state_class=SensorStateClass.TOTAL_INCREASING,
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         icon="mdi:transmission-tower-export",
+        entity_registry_enabled_default=False,  # Not provided by Noah API
     ),
     SensorEntityDescription(
         key="grid_energy_imported_total",
@@ -193,6 +202,7 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
         state_class=SensorStateClass.TOTAL_INCREASING,
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         icon="mdi:transmission-tower-import",
+        entity_registry_enabled_default=False,  # Not provided by Noah API
     ),
     SensorEntityDescription(
         key="grid_energy_exported_total",
@@ -201,6 +211,7 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
         state_class=SensorStateClass.TOTAL_INCREASING,
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         icon="mdi:transmission-tower-export",
+        entity_registry_enabled_default=False,  # Not provided by Noah API
     ),
     
     # Load sensors
@@ -219,6 +230,7 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
         state_class=SensorStateClass.TOTAL_INCREASING,
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         icon="mdi:home-lightning-bolt",
+        entity_registry_enabled_default=False,  # Not provided by Noah API
     ),
     SensorEntityDescription(
         key="load_energy_total",
@@ -227,6 +239,7 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
         state_class=SensorStateClass.TOTAL_INCREASING,
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         icon="mdi:home-lightning-bolt",
+        entity_registry_enabled_default=False,  # Not provided by Noah API
     ),
     
     # System sensors

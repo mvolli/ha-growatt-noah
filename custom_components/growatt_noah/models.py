@@ -13,7 +13,7 @@ class BatteryData:
     voltage: float  # Voltage (V)
     current: float  # Current (A)
     power: float  # Power (W)
-    temperature: float  # Temperature (°C)
+    temperature: Optional[float]  # Temperature (°C) — not provided by Noah API
     status: str  # Charging/Discharging/Idle
     health: Optional[float] = None  # Battery health (%)
     capacity: Optional[float] = None  # Total capacity (kWh)
@@ -38,7 +38,7 @@ class GridData:
     """Grid information."""
     power: float  # Grid power (W) - positive = import, negative = export
     voltage: float  # Grid voltage (V)
-    frequency: float  # Grid frequency (Hz)
+    frequency: Optional[float]  # Grid frequency (Hz) — not provided by Noah API
     energy_imported_today: float  # Energy imported today (kWh)
     energy_exported_today: float  # Energy exported today (kWh)
     energy_imported_total: float  # Total energy imported (kWh)
@@ -102,7 +102,7 @@ class NoahData:
             voltage=data.get("battery_voltage", 0),
             current=data.get("battery_current", 0),
             power=data.get("battery_power", 0),
-            temperature=data.get("battery_temperature", 0),
+            temperature=data.get("battery_temperature"),
             status=data.get("battery_status", "Unknown"),
             health=data.get("battery_health"),
             capacity=data.get("battery_capacity"),
@@ -123,7 +123,7 @@ class NoahData:
         grid = GridData(
             power=data.get("grid_power", 0),
             voltage=data.get("grid_voltage", 0),
-            frequency=data.get("grid_frequency", 50),
+            frequency=data.get("grid_frequency"),
             energy_imported_today=data.get("grid_energy_imported_today", 0),
             energy_exported_today=data.get("grid_energy_exported_today", 0),
             energy_imported_total=data.get("grid_energy_imported_total", 0),
@@ -189,7 +189,7 @@ class NoahData:
             voltage=float(battery_data.get("battery_voltage", 0)),
             current=float(battery_data.get("battery_current", 0)),
             power=float(battery_data.get("battery_power", 0)),
-            temperature=float(battery_data.get("battery_temperature", 25)),
+            temperature=battery_data.get("battery_temperature"),
             status=cls._convert_noah_status(battery_data.get("status", True)),
             health=battery_data.get("health"),
             capacity=battery_data.get("capacity") or battery_data.get("rated_capacity"),
@@ -214,11 +214,11 @@ class NoahData:
         grid = GridData(
             power=float(grid_power),
             voltage=0,  # Not directly available
-            frequency=50,  # Default
+            frequency=None,  # Not available in Noah API
             energy_imported_today=0,  # Not directly available
-            energy_exported_today=float(noah_status.get("eacToday", 0)),
+            energy_exported_today=0,  # Not directly available
             energy_imported_total=0,  # Not directly available
-            energy_exported_total=float(noah_status.get("eacTotal", 0)),
+            energy_exported_total=0,  # Not directly available
             grid_connected=battery_data.get("status", True),
         )
         
@@ -234,7 +234,13 @@ class NoahData:
         )
         
         # System data
-        work_mode_map = {0: "Load First", 1: "Battery First", 2: "Grid First"}
+        work_mode_map = {
+            0: "No Response",
+            1: "Load First",
+            2: "Battery First",
+            3: "Grid First",
+            4: "Backup Mode",
+        }
         work_mode = work_mode_map.get(battery_data.get("work_mode", 0), "Unknown")
         
         system = SystemData(
