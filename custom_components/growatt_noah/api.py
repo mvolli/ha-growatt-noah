@@ -279,9 +279,9 @@ class GrowattNoahAPI:
 
             if result.get("result"):
                 noah_status = result.get("obj", {})
-                _LOGGER.debug("Noah system status response: %s", noah_status)
                 _LOGGER.debug(
-                    "Raw Noah power values - chargePower: %s, disChargePower: %s",
+                    "Noah status - SOC: %s, chargePower: %s, disChargePower: %s",
+                    noah_status.get("soc"),
                     noah_status.get("chargePower"),
                     noah_status.get("disChargePower"),
                 )
