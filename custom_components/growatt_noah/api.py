@@ -201,30 +201,17 @@ class GrowattNoahAPI:
             await self._authenticate_with_password()
 
     async def _authenticate_with_api_key(self) -> None:
-        """Token-based auth via Growatt OpenAPI key – immune to IP bans."""
-        token_url = "https://openapi.growatt.com/v1/token/generate"
-        _LOGGER.debug("Authenticating with Growatt API key")
+        """Token-based auth via Growatt API key – immune to IP bans.
 
-        async with self._session.post(
-            token_url,
-            json={"key": self.api_key},
-            headers={"Content-Type": "application/json"},
-        ) as response:
-            if response.status != 200:
-                raise Exception(f"API key auth HTTP {response.status}")
-            result = await response.json()
-            error_code = result.get("error_code", -1)
-            if error_code == 0:
-                self._auth_token = result.get("data", {}).get("access_token")
-                self._bearer_mode = True
-                _LOGGER.debug("API key authentication successful (Bearer mode)")
-                if self._auth_token and self._on_token_saved:
-                    self._on_token_saved(self._auth_token)
-            else:
-                raise Exception(
-                    f"API key auth failed (error_code={error_code}): "
-                    f"{result.get('error_msg', 'Unknown')}"
-                )
+        The API key from server.growatt.com → Settings → API Key is used
+        directly as the auth token in POST body (userId field). No exchange
+        needed – Growatt's openapi endpoints accept it directly.
+        """
+        _LOGGER.debug("Using Growatt API key directly as auth token")
+        self._auth_token = self.api_key
+        self._bearer_mode = False   # API key goes into userId field, same as session token
+        if self._on_token_saved:
+            self._on_token_saved(self._auth_token)
 
     async def _authenticate_with_password(self) -> None:
         """Legacy username+password auth (fallback – may trigger IP bans at high poll rates)."""
