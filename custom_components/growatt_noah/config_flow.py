@@ -17,16 +17,19 @@ from .const import (
     CONNECTION_TYPE_API,
     DEVICE_TYPE_NOAH,
     DEFAULT_SCAN_INTERVAL,
+    CONF_API_KEY,
+    CONF_DEVICE_ID,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
-# Configuration schema for Noah 2000 API connection
+# Configuration schema – API key (preferred) OR username+password
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_USERNAME): str,
-        vol.Required(CONF_PASSWORD): str,
-        vol.Optional("device_id", description="Device serial number (leave empty for auto-detection)"): str,
+        vol.Optional(CONF_API_KEY, description="Growatt API Key (Settings → API Key) – preferred, avoids IP bans"): str,
+        vol.Optional(CONF_USERNAME): str,
+        vol.Optional(CONF_PASSWORD): str,
+        vol.Optional(CONF_DEVICE_ID, description="Device serial number (leave empty for auto-detection)"): str,
         vol.Optional("scan_interval", default=DEFAULT_SCAN_INTERVAL): vol.Coerce(int),
     }
 )
@@ -34,14 +37,20 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
     """Validate the user input allows us to connect."""
-    
-    # Create API client for testing
+    api_key = data.get(CONF_API_KEY, "").strip()
+    username = data.get(CONF_USERNAME, "").strip()
+    password = data.get(CONF_PASSWORD, "").strip()
+
+    if not api_key and not (username and password):
+        raise CannotConnect("Provide either an API Key or Username + Password")
+
     api_client = GrowattNoahAPI(
         connection_type=CONNECTION_TYPE_API,
         device_type=DEVICE_TYPE_NOAH,
-        username=data.get(CONF_USERNAME),
-        password=data.get(CONF_PASSWORD),
-        device_id=data.get("device_id"),
+        username=username or None,
+        password=password or None,
+        api_key=api_key or None,
+        device_id=data.get(CONF_DEVICE_ID) or data.get("device_id"),
     )
     
     try:

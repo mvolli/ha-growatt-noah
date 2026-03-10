@@ -9,7 +9,7 @@ import hashlib
 
 import aiohttp
 
-from .const import CONNECTION_TYPE_API, DEVICE_TYPE_NOAH, DEFAULT_TIMEOUT
+from .const import CONNECTION_TYPE_API, DEVICE_TYPE_NOAH, DEFAULT_TIMEOUT, CONF_API_KEY
 from .models import NoahData
 
 _LOGGER = logging.getLogger(__name__)
@@ -24,6 +24,7 @@ class GrowattNoahAPI:
         device_type: str = DEVICE_TYPE_NOAH,
         username: Optional[str] = None,
         password: Optional[str] = None,
+        api_key: Optional[str] = None,
         device_id: Optional[str] = None,
         timeout: int = DEFAULT_TIMEOUT,
         cached_token: Optional[str] = None,
@@ -39,32 +40,32 @@ class GrowattNoahAPI:
         self.device_type = device_type
         self.username = username
         self.password = password
+        self.api_key = api_key        # Growatt OpenAPI token (preferred – no IP bans)
         self.device_id = device_id
         self.timeout = timeout
 
         self._session: Optional[aiohttp.ClientSession] = None
-        self._auth_token: Optional[str] = cached_token  # Pre-seed from cache
+        self._auth_token: Optional[str] = cached_token
+        self._bearer_mode: bool = False   # True when using API key (Bearer token)
         self._on_token_saved: Optional[Callable[[str], None]] = on_token_saved
-        self._semaphore = asyncio.Semaphore(1)  # Limit concurrent requests
+        self._semaphore = asyncio.Semaphore(1)
     
     async def async_test_connection(self) -> bool:
         """Test the connection to the Noah 2000 device."""
-        _LOGGER.debug("Testing API connection for Noah 2000: username=%s, device_id=%s", 
-                     self.username, self.device_id)
-        
-        if not self.username or not self.password:
-            _LOGGER.error("Missing username or password")
+        _LOGGER.debug(
+            "Testing API connection: username=%s, api_key=%s, device_id=%s",
+            self.username,
+            "***" if self.api_key else None,
+            self.device_id,
+        )
+
+        if not self.api_key and not (self.username and self.password):
+            _LOGGER.error("Provide either an API key or username+password")
             return False
-        
+
         try:
             await self._authenticate_api()
-            if self._auth_token:
-                _LOGGER.debug("Authentication successful, token=%s", self._auth_token)
-                return True
-            else:
-                _LOGGER.error("Authentication failed - no token received")
-                return False
-                
+            return bool(self._auth_token)
         except Exception as err:
             _LOGGER.error("Connection test failed: %s", err)
             return False
@@ -101,14 +102,17 @@ class GrowattNoahAPI:
         if not self._auth_token:
             await self._authenticate_api()
 
-        data = {
-            "deviceSn": self.device_id,
-            "userId": self._auth_token,
-        }
+        data = {"deviceSn": self.device_id}
+        extra_headers = {}
+        if self._bearer_mode:
+            extra_headers["Authorization"] = f"Bearer {self._auth_token}"
+        else:
+            data["userId"] = self._auth_token
 
         async with self._session.post(
             "https://openapi.growatt.com/noahDeviceApi/noah/getNoahInfo",
             data=data,
+            headers=extra_headers,
         ) as response:
             if response.status != 200:
                 raise Exception(f"getNoahInfo HTTP {response.status}")
@@ -175,49 +179,74 @@ class GrowattNoahAPI:
         return password_md5
     
     async def _authenticate_api(self) -> None:
-        """Authenticate with Growatt API using aiohttp (like official HA integration)."""
-        # Always ensure we have an aiohttp session (required for ALL API calls).
-        # Session creation must happen before the cached-token early-return below.
+        """Authenticate: API key (preferred) or username+password fallback."""
         if not self._session:
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                 "Accept": "application/json, text/plain, */*",
                 "Content-Type": "application/x-www-form-urlencoded",
             }
-            cookie_jar = aiohttp.CookieJar()
             self._session = aiohttp.ClientSession(
                 timeout=aiohttp.ClientTimeout(total=self.timeout),
                 headers=headers,
-                cookie_jar=cookie_jar,
+                cookie_jar=aiohttp.CookieJar(),
             )
 
-        # If we already have a token (cached or from a previous login), skip re-auth.
-        # The token is cleared on session-expiry so this method will be called again.
         if self._auth_token:
             return
 
-        # Hash password using Growatt's method
+        if self.api_key:
+            await self._authenticate_with_api_key()
+        else:
+            await self._authenticate_with_password()
+
+    async def _authenticate_with_api_key(self) -> None:
+        """Token-based auth via Growatt OpenAPI key – immune to IP bans."""
+        token_url = "https://openapi.growatt.com/v1/token/generate"
+        _LOGGER.debug("Authenticating with Growatt API key")
+
+        async with self._session.post(
+            token_url,
+            json={"key": self.api_key},
+            headers={"Content-Type": "application/json"},
+        ) as response:
+            if response.status != 200:
+                raise Exception(f"API key auth HTTP {response.status}")
+            result = await response.json()
+            error_code = result.get("error_code", -1)
+            if error_code == 0:
+                self._auth_token = result.get("data", {}).get("access_token")
+                self._bearer_mode = True
+                _LOGGER.debug("API key authentication successful (Bearer mode)")
+                if self._auth_token and self._on_token_saved:
+                    self._on_token_saved(self._auth_token)
+            else:
+                raise Exception(
+                    f"API key auth failed (error_code={error_code}): "
+                    f"{result.get('error_msg', 'Unknown')}"
+                )
+
+    async def _authenticate_with_password(self) -> None:
+        """Legacy username+password auth (fallback – may trigger IP bans at high poll rates)."""
         hashed_password = self._hash_password(self.password)
-        
-        login_data = {
-            "userName": self.username,
-            "password": hashed_password,
-        }
-        
+        login_data = {"userName": self.username, "password": hashed_password}
         login_url = "https://openapi.growatt.com/newTwoLoginAPI.do"
-        
+        _LOGGER.debug("Authenticating with username+password (consider switching to API key)")
+
         async with self._session.post(login_url, data=login_data) as response:
             if response.status == 200:
                 result = await response.json()
                 login_result = result.get("back", {})
-                
                 if login_result.get("success"):
                     self._auth_token = login_result.get("user", {}).get("id")
-                    _LOGGER.debug("Authentication successful")
+                    self._bearer_mode = False
+                    _LOGGER.debug("Username/password authentication successful")
                     if self._auth_token and self._on_token_saved:
                         self._on_token_saved(self._auth_token)
                 else:
-                    raise Exception(f"Login failed: {login_result.get('msg', 'Authentication failed')}")
+                    raise Exception(
+                        f"Login failed: {login_result.get('msg', 'Authentication failed')}"
+                    )
             else:
                 text = await response.text()
                 raise Exception(f"HTTP {response.status}: {text}")
@@ -226,16 +255,19 @@ class GrowattNoahAPI:
         """Get Noah system status with comprehensive battery information."""
         if not self._auth_token:
             await self._authenticate_api()
-        
-        # The Noah API requires both the auth token and session cookies
-        data = {
-            "deviceSn": serial_number,
-            "userId": self._auth_token  # Include user ID in request
-        }
+
+        data = {"deviceSn": serial_number}
+        extra_headers = {}
+
+        if self._bearer_mode:
+            extra_headers["Authorization"] = f"Bearer {self._auth_token}"
+        else:
+            data["userId"] = self._auth_token
         
         async with self._session.post(
             "https://openapi.growatt.com/noahDeviceApi/noah/getSystemStatus",
             data=data,
+            headers=extra_headers,
         ) as response:
             if response.status != 200:
                 raise Exception(f"Failed to get Noah status: HTTP {response.status}")

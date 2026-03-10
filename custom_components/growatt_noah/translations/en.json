@@ -3,9 +3,13 @@
     "step": {
       "user": {
         "title": "Growatt Noah 2000 Setup",
-        "description": "Choose how you want to connect to your Growatt Noah 2000 battery system.",
+        "description": "Enter your Growatt API Key (recommended) or Username + Password. Find your API Key at server.growatt.com → Settings → API Key.",
         "data": {
-          "connection_type": "Connection Type"
+          "api_key": "API Key (recommended – avoids IP bans)",
+          "username": "Username (fallback)",
+          "password": "Password (fallback)",
+          "device_id": "Device Serial Number (leave empty for auto-detection)",
+          "scan_interval": "Update Interval (seconds)"
         }
       },
       "api": {

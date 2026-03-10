@@ -12,7 +12,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DOMAIN, DEFAULT_SCAN_INTERVAL, DEVICE_TYPE_NOAH
+from .const import DOMAIN, DEFAULT_SCAN_INTERVAL, DEVICE_TYPE_NOAH, CONF_API_KEY, CONF_DEVICE_ID
 from .api import GrowattNoahAPI
 from .models import NoahData
 
@@ -54,7 +54,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         device_type=entry.data.get("device_type", DEVICE_TYPE_NOAH),
         username=entry.data.get("username"),
         password=entry.data.get("password"),
-        device_id=entry.data.get("device_id"),
+        api_key=entry.data.get(CONF_API_KEY),
+        device_id=entry.data.get(CONF_DEVICE_ID) or entry.data.get("device_id"),
         cached_token=cached_token,
         on_token_saved=_save_token,
     )
