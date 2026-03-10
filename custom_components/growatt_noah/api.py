@@ -201,15 +201,19 @@ class GrowattNoahAPI:
             await self._authenticate_with_password()
 
     async def _authenticate_with_api_key(self) -> None:
-        """Token-based auth via Growatt API key – immune to IP bans.
-
-        The API key from server.growatt.com → Settings → API Key is used
-        directly as the auth token in POST body (userId field). No exchange
-        needed – Growatt's openapi endpoints accept it directly.
+        """NOTE: Growatt API keys from server.growatt.com do NOT work with
+        openapi.growatt.com (Noah endpoints). Fall back to password auth.
         """
-        _LOGGER.debug("Using Growatt API key as Bearer token")
-        self._auth_token = self.api_key
-        self._bearer_mode = True    # API key goes into Authorization: Bearer header
+        _LOGGER.warning(
+            "Growatt API key is NOT supported by openapi.growatt.com (Noah endpoints). "
+            "Falling back to username+password authentication."
+        )
+        if not (self.username and self.password):
+            raise Exception(
+                "API key auth is not supported for Noah endpoints. "
+                "Please reconfigure with username and password."
+            )
+        await self._authenticate_with_password()
         if self._on_token_saved:
             self._on_token_saved(self._auth_token)
 

@@ -4,7 +4,7 @@ from typing import Final
 DOMAIN: Final = "growatt_noah"
 
 # Default configuration
-DEFAULT_SCAN_INTERVAL: Final = 60   # seconds (60s is safe with API key token auth)
+DEFAULT_SCAN_INTERVAL: Final = 300  # seconds (5 min – safe for openapi.growatt.com rate limits)
 DEFAULT_TIMEOUT: Final = 10  # seconds
 
 # Connection types - Only API is supported
