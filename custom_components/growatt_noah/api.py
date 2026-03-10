@@ -207,9 +207,9 @@ class GrowattNoahAPI:
         directly as the auth token in POST body (userId field). No exchange
         needed – Growatt's openapi endpoints accept it directly.
         """
-        _LOGGER.debug("Using Growatt API key directly as auth token")
+        _LOGGER.debug("Using Growatt API key as Bearer token")
         self._auth_token = self.api_key
-        self._bearer_mode = False   # API key goes into userId field, same as session token
+        self._bearer_mode = True    # API key goes into Authorization: Bearer header
         if self._on_token_saved:
             self._on_token_saved(self._auth_token)
 
@@ -238,7 +238,7 @@ class GrowattNoahAPI:
                 text = await response.text()
                 raise Exception(f"HTTP {response.status}: {text}")
     
-    async def _noah_system_status(self, serial_number: str) -> dict[str, Any]:
+    async def _noah_system_status(self, serial_number: str, _retry: bool = True) -> dict[str, Any]:
         """Get Noah system status with comprehensive battery information."""
         if not self._auth_token:
             await self._authenticate_api()
@@ -264,10 +264,12 @@ class GrowattNoahAPI:
 
             # Detect session expiry (server redirects to a login page)
             if "login" in response_text.lower() or "jsessionid" in response_text.lower():
+                if not _retry:
+                    raise Exception("Auth failed after re-authentication — check API key or credentials")
                 _LOGGER.warning("Session expired, re-authenticating...")
                 self._auth_token = None
                 await self._authenticate_api()
-                return await self._noah_system_status(serial_number)
+                return await self._noah_system_status(serial_number, _retry=False)
 
             try:
                 result = json.loads(response_text)
