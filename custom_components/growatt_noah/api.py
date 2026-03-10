@@ -235,6 +235,13 @@ class GrowattNoahAPI:
                     if self._auth_token and self._on_token_saved:
                         self._on_token_saved(self._auth_token)
                 else:
+                    msg = login_result.get("msg", "")
+                    if msg == "507" or "locked" in login_result.get("error", "").lower():
+                        lock_hours = login_result.get("lockDuration", "?")
+                        raise Exception(
+                            f"Growatt account locked for {lock_hours} hours due to too many login attempts. "
+                            f"Wait {lock_hours}h or reset your password via the Growatt app."
+                        )
                     raise Exception(
                         f"Login failed: {login_result.get('msg', 'Authentication failed')}"
                     )
